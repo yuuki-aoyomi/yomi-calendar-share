@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS calendar_snapshots (
+  calendar_id TEXT PRIMARY KEY,
+  snapshot_json TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

@@ -59,6 +59,7 @@ export type DailyPhoto = {
   id: string;
   date: string;
   imageUrl: string;
+  imageKey?: string;
   memo?: string;
   imageMeta?: EventImageMeta;
   createdAt: string;

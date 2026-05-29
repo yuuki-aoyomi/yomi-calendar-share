@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { loadCalendarSnapshot, saveCalendarSnapshot, shouldUseRemoteApi } from './api/calendarApi';
 import { Calendar } from './components/Calendar';
 import { ModeTabs } from './components/ModeTabs';
 import { ScheduleMode } from './components/ScheduleMode';
@@ -19,6 +20,8 @@ import type {
 import { getMonthKey, toDateKey } from './utils/date';
 
 const todayKey = toDateKey(new Date());
+const calendarId = 'default';
+const remoteApiEnabled = shouldUseRemoteApi();
 
 function App() {
   const [activeMode, setActiveMode] = useState<CalendarMode>('schedule');
@@ -59,10 +62,64 @@ function App() {
   );
 
   const currentMonthKey = useMemo(() => getMonthKey(currentMonth), [currentMonth]);
+  const [isRemoteLoaded, setIsRemoteLoaded] = useState(!remoteApiEnabled);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
+
+  useEffect(() => {
+    if (!remoteApiEnabled) return;
+
+    let isCancelled = false;
+
+    loadCalendarSnapshot(calendarId)
+      .then((snapshot) => {
+        if (isCancelled) return;
+
+        setEvents(snapshot.events);
+        setMoneyRecords(snapshot.moneyRecords);
+        setLoveLogs(snapshot.loveLogs);
+        setTags(snapshot.tags);
+        setPartTimeJobs(snapshot.partTimeJobs);
+        setCreditCards(snapshot.creditCards);
+        setDailyPhotos(snapshot.dailyPhotos);
+        setIsRemoteLoaded(true);
+      })
+      .catch(() => {
+        if (!isCancelled) setIsRemoteLoaded(true);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    setCreditCards,
+    setDailyPhotos,
+    setEvents,
+    setLoveLogs,
+    setMoneyRecords,
+    setPartTimeJobs,
+    setTags,
+  ]);
+
+  useEffect(() => {
+    if (!remoteApiEnabled || !isRemoteLoaded) return;
+
+    const timeoutId = window.setTimeout(() => {
+      void saveCalendarSnapshot(calendarId, {
+        events,
+        moneyRecords,
+        loveLogs,
+        tags,
+        partTimeJobs,
+        creditCards,
+        dailyPhotos,
+      });
+    }, 500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [creditCards, dailyPhotos, events, isRemoteLoaded, loveLogs, moneyRecords, partTimeJobs, tags]);
 
   return (
     <main className="app-shell">
@@ -83,7 +140,7 @@ function App() {
           </button>
           <div className="ai-card">
             <span>AIアドバイス</span>
-            <p>今週は予定が少し詰まっています。休憩時間も確保しましょう。</p>
+            <p>今週も無理しすぎず、自分のペースで頑張ってください。</p>
           </div>
         </div>
       </section>
@@ -106,6 +163,7 @@ function App() {
 
           {activeMode === 'schedule' && (
             <ScheduleMode
+              calendarId={calendarId}
               selectedDate={selectedDate}
               events={events}
               moneyRecords={moneyRecords}
@@ -126,9 +184,6 @@ function App() {
               partTimeJobs={partTimeJobs}
               creditCards={creditCards}
               records={moneyRecords}
-              onTagsChange={setTags}
-              onPartTimeJobsChange={setPartTimeJobs}
-              onCreditCardsChange={setCreditCards}
               onRecordsChange={setMoneyRecords}
             />
           )}
@@ -142,8 +197,14 @@ function App() {
             />
           )}
           {isSettingsOpen && (
-            <div className="modal-backdrop" role="presentation">
-              <section className="settings-modal-panel" role="dialog" aria-modal="true" aria-label="設定">
+            <div className="modal-backdrop" role="presentation" onClick={() => setIsSettingsOpen(false)}>
+              <section
+                className="settings-modal-panel"
+                role="dialog"
+                aria-modal="true"
+                aria-label="設定"
+                onClick={(event) => event.stopPropagation()}
+              >
                 <div className="settings-modal-header">
                   <h2>設定</h2>
                   <button
@@ -176,6 +237,9 @@ function App() {
                     setDailyPhotos(data.dailyPhotos);
                   }}
                   onThemeChange={setTheme}
+                  onTagsChange={setTags}
+                  onPartTimeJobsChange={setPartTimeJobs}
+                  onCreditCardsChange={setCreditCards}
                 />
               </section>
             </div>

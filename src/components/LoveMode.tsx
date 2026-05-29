@@ -49,10 +49,16 @@ export function LoveMode({ selectedDate, currentMonthKey, logs, onLogsChange }: 
   return (
     <div className="mode-content">
       <article className="heart-meter">
-        <span>今月のハート</span>
-        <strong>{monthHeartTotal} / {monthlyHeartGoal}</strong>
-        <div className="heart-track">
-          <div style={{ width: `${Math.min((monthHeartTotal / monthlyHeartGoal) * 100, 100)}%` }} />
+        <div className="heart-bank-icon" aria-hidden="true">
+          ♥
+        </div>
+        <div className="heart-bank-main">
+          <span>今月のハート貯金</span>
+          <strong>{monthHeartTotal} / {monthlyHeartGoal}</strong>
+          <div className="heart-track">
+            <div style={{ width: `${Math.min((monthHeartTotal / monthlyHeartGoal) * 100, 100)}%` }} />
+          </div>
+          <p>ラブログを保存すると、ここにハートが貯まります。</p>
         </div>
       </article>
 

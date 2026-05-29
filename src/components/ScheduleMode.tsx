@@ -7,6 +7,7 @@ import { buildCreditCardPaymentSchedules } from '../utils/creditCard';
 import { getEventsForDate } from '../utils/recurrence';
 
 type ScheduleModeProps = {
+  calendarId: string;
   selectedDate: string;
   events: CalendarEvent[];
   moneyRecords: MoneyRecord[];
@@ -19,6 +20,7 @@ type ScheduleModeProps = {
 };
 
 export function ScheduleMode({
+  calendarId,
   selectedDate,
   events,
   moneyRecords,
@@ -81,6 +83,7 @@ export function ScheduleMode({
       />
 
       <DailyPhotoPanel
+        calendarId={calendarId}
         selectedDate={selectedDate}
         photos={dailyPhotos}
         onPhotosChange={onDailyPhotosChange}

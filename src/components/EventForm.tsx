@@ -37,7 +37,7 @@ const tagTypeOptions: Array<{ value: CalendarTagType; label: string }> = [
 const tagColors: Record<CalendarTagType, string> = {
   person: '#4f8cff',
   work: '#1fbf83',
-  'credit-card': '#f59f00',
+  'credit-card': '#f5b400',
   custom: '#7c6ee6',
 };
 
@@ -143,6 +143,10 @@ export function EventForm({
     onTagsChange((current) => [...current, tag]);
     setSelectedTagIds((current) => [...current, tag.id]);
     setNewTagName('');
+  };
+
+  const handleRemoveTagFromEvent = (tagId: string) => {
+    setSelectedTagIds((current) => current.filter((id) => id !== tagId));
   };
 
   const handleApplySuggestion = (suggestion: CalendarEvent) => {
@@ -332,7 +336,7 @@ export function EventForm({
       <div className="field-group">
         <div className="form-heading small">
           <h4>タグ</h4>
-          <span>複数選択できます</span>
+          <span>選択・作成・削除できます</span>
         </div>
 
         {tags.length === 0 ? (
@@ -340,16 +344,26 @@ export function EventForm({
         ) : (
           <div className="tag-picker">
             {tags.map((tag) => (
-              <button
+              <span
                 key={tag.id}
-                type="button"
                 className={selectedTagIds.includes(tag.id) ? 'tag-option active' : 'tag-option'}
                 style={{ borderColor: tag.color }}
-                onClick={() => handleToggleTag(tag.id)}
               >
-                <span style={{ background: tag.color }} />
-                {tag.name}
-              </button>
+                <button type="button" className="tag-toggle-button" onClick={() => handleToggleTag(tag.id)}>
+                  <span style={{ background: tag.color }} />
+                  {tag.name}
+                </button>
+                {selectedTagIds.includes(tag.id) && (
+                  <button
+                    type="button"
+                    className="tag-delete-button"
+                    aria-label={`${tag.name} をこの予定から外す`}
+                    onClick={() => handleRemoveTagFromEvent(tag.id)}
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
             ))}
           </div>
         )}
@@ -368,6 +382,7 @@ export function EventForm({
           </button>
         </div>
       </div>
+
       <div className="form-actions">
         <button
           className="ghost-button"

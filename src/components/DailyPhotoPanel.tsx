@@ -1,17 +1,20 @@
 import { useState } from 'react';
+import { shouldUseRemoteApi, uploadDailyPhoto } from '../api/calendarApi';
 import type { DailyPhoto, EventImageMeta } from '../types/calendar';
 import { compressImageFile, formatBytes } from '../utils/imageCompression';
 import { createId } from '../utils/id';
 
 type DailyPhotoPanelProps = {
+  calendarId: string;
   selectedDate: string;
   photos: DailyPhoto[];
   onPhotosChange: React.Dispatch<React.SetStateAction<DailyPhoto[]>>;
 };
 
-export function DailyPhotoPanel({ selectedDate, photos, onPhotosChange }: DailyPhotoPanelProps) {
+export function DailyPhotoPanel({ calendarId, selectedDate, photos, onPhotosChange }: DailyPhotoPanelProps) {
   const [memo, setMemo] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [imageBlob, setImageBlob] = useState<Blob | undefined>();
   const [imageMeta, setImageMeta] = useState<EventImageMeta | undefined>();
   const [isCompressing, setIsCompressing] = useState(false);
   const [error, setError] = useState('');
@@ -20,6 +23,7 @@ export function DailyPhotoPanel({ selectedDate, photos, onPhotosChange }: DailyP
   const reset = () => {
     setMemo('');
     setImageUrl('');
+    setImageBlob(undefined);
     setImageMeta(undefined);
     setError('');
   };
@@ -34,6 +38,7 @@ export function DailyPhotoPanel({ selectedDate, photos, onPhotosChange }: DailyP
     try {
       const compressedImage = await compressImageFile(file);
       setImageUrl(compressedImage.dataUrl);
+      setImageBlob(compressedImage.blob);
       setImageMeta({
         fileName: compressedImage.fileName,
         originalSize: compressedImage.originalSize,
@@ -52,16 +57,38 @@ export function DailyPhotoPanel({ selectedDate, photos, onPhotosChange }: DailyP
     }
   };
 
-  const handleAddPhoto = () => {
+  const handleAddPhoto = async () => {
     if (!imageUrl && !memo.trim()) return;
 
     const now = new Date().toISOString();
+    const photoId = createId();
+    let savedImageUrl = imageUrl;
+    let imageKey: string | undefined;
+
+    if (shouldUseRemoteApi() && imageBlob) {
+      try {
+        const uploadedImage = await uploadDailyPhoto({
+          calendarId,
+          date: selectedDate,
+          photoId,
+          file: imageBlob,
+        });
+
+        savedImageUrl = uploadedImage.publicUrl;
+        imageKey = uploadedImage.key;
+      } catch (uploadError) {
+        setError(uploadError instanceof Error ? uploadError.message : '画像アップロードに失敗しました。');
+        return;
+      }
+    }
+
     onPhotosChange((current) => [
       ...current,
       {
-        id: createId(),
+        id: photoId,
         date: selectedDate,
-        imageUrl,
+        imageUrl: savedImageUrl,
+        imageKey,
         memo: memo.trim() || undefined,
         imageMeta,
         createdAt: now,

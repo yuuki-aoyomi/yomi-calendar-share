@@ -1,5 +1,6 @@
 export type CompressedImage = {
   dataUrl: string;
+  blob: Blob;
   fileName: string;
   originalSize: number;
   compressedSize: number;
@@ -76,6 +77,7 @@ export const compressImageFile = async (
     URL.revokeObjectURL(image.src);
     return {
       dataUrl: await fileToDataUrl(file),
+      blob: file,
       fileName: file.name,
       originalSize: file.size,
       compressedSize: file.size,
@@ -110,6 +112,7 @@ export const compressImageFile = async (
 
   return {
     dataUrl: await blobToDataUrl(blob),
+    blob,
     fileName: file.name,
     originalSize: file.size,
     compressedSize: blob.size,

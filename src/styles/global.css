@@ -59,7 +59,7 @@ button {
 }
 
 .app-shell {
-  width: min(1180px, calc(100% - 32px));
+  width: min(1320px, calc(100% - 32px));
   margin: 0 auto;
   padding: 32px 0;
 }
@@ -146,7 +146,7 @@ h1 {
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(320px, 470px) minmax(0, 1fr);
+  grid-template-columns: minmax(620px, 1.25fr) minmax(360px, 0.75fr);
   gap: 24px;
   align-items: start;
 }
@@ -162,6 +162,12 @@ h1 {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 18px;
+}
+
+.calendar-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .calendar-header h2 {
@@ -185,6 +191,49 @@ h1 {
   background: var(--border);
 }
 
+.month-nav-button {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--soft-bg);
+  color: var(--muted-text);
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.month-nav-button:hover {
+  background: var(--muted-bg);
+  color: var(--heading);
+}
+
+.today-button {
+  min-width: 58px;
+  border: 1px solid rgba(79, 140, 255, 0.24);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #f4f8ff;
+  color: #3f6fae;
+  font-weight: 900;
+}
+
+.today-button:hover {
+  background: #e8f0ff;
+}
+
+:root[data-theme="dark"] .today-button {
+  border-color: rgba(147, 197, 253, 0.24);
+  background: #202c42;
+  color: #b9d4ff;
+}
+
+:root[data-theme="dark"] .today-button:hover {
+  background: #293957;
+}
+
 .week-row,
 .calendar-grid {
   display: grid;
@@ -200,18 +249,18 @@ h1 {
 }
 
 .calendar-grid {
-  gap: 8px;
+  gap: 10px;
 }
 
 .day-cell {
   position: relative;
   display: flex;
-  min-height: 58px;
+  min-height: 116px;
   flex-direction: column;
   justify-content: space-between;
   border: 1px solid var(--border);
   border-radius: 16px;
-  padding: 9px;
+  padding: 10px;
   background: var(--card-bg);
   color: var(--text);
   text-align: left;
@@ -233,7 +282,9 @@ h1 {
 }
 
 .day-cell.today {
-  border-color: #4f8cff;
+  border-color: rgba(79, 140, 255, 0.48);
+  background: #f7faff;
+  box-shadow: inset 0 0 0 1px rgba(79, 140, 255, 0.08);
 }
 
 .day-cell.today .day-number {
@@ -246,6 +297,49 @@ h1 {
   color: #fff;
 }
 
+.day-cell.today::after {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: #5f86c8;
+  font-size: 0.66rem;
+  font-weight: 900;
+  content: "TODAY";
+}
+
+.day-cell.today .day-dots {
+  padding-right: 42px;
+}
+
+.day-cell.today.selected {
+  border-color: #1fbf83;
+  box-shadow:
+    inset 0 0 0 1px rgba(79, 140, 255, 0.08),
+    0 0 0 3px rgba(31, 191, 131, 0.14);
+}
+
+:root[data-theme="dark"] .day-cell.today {
+  border-color: rgba(147, 197, 253, 0.42);
+  background: #1f2b41;
+  box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.08);
+}
+
+:root[data-theme="dark"] .day-cell.today .day-number {
+  background: #3b6ea8;
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .day-cell.today::after {
+  color: #9fc3f5;
+}
+
+:root[data-theme="dark"] .day-cell.today.selected {
+  border-color: #56c99b;
+  box-shadow:
+    inset 0 0 0 1px rgba(147, 197, 253, 0.08),
+    0 0 0 3px rgba(86, 201, 155, 0.16);
+}
+
 .day-cell.selected {
   border-color: #1fbf83;
   box-shadow: 0 0 0 3px rgba(31, 191, 131, 0.18);
@@ -254,6 +348,13 @@ h1 {
 .day-dots {
   display: flex;
   gap: 4px;
+}
+
+.day-cell-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .dot {
@@ -267,19 +368,52 @@ h1 {
 }
 
 .money-dot {
-  background: #1fbf83;
-}
-
-.payment-dot {
-  background: #f59f00;
-}
-
-.photo-dot {
-  background: #7c6ee6;
+  background: #f5b400;
 }
 
 .love-dot {
   background: #ff5c93;
+}
+
+.diary-dot {
+  background: #7c6ee6;
+}
+
+.day-preview-list {
+  display: grid;
+  gap: 4px;
+  min-height: 48px;
+}
+
+.day-preview-item {
+  overflow: hidden;
+  border-radius: 7px;
+  padding: 3px 5px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedule-preview {
+  background: #eef4ff;
+  color: #3568b7;
+}
+
+.diary-preview {
+  background: #f0edff;
+  color: #6552c7;
+}
+
+.money-preview {
+  background: #fff3d8;
+  color: #9a4d00;
+}
+
+.love-preview {
+  background: #fff0f5;
+  color: #c72d65;
 }
 
 .payment-badge {
@@ -336,7 +470,7 @@ h1 {
 }
 
 .mode-tab.money .mode-tab-icon {
-  color: #1fbf83;
+  color: #f5b400;
 }
 
 .mode-tab.love .mode-tab-icon {
@@ -354,9 +488,20 @@ h1 {
   color: #18382c;
 }
 
+.mode-tab.money.active {
+  border-color: #f5b400;
+  background: #fff8d8;
+  color: #5f4300;
+}
+
 :root[data-theme="dark"] .mode-tab.active {
   background: #123b2d;
   color: #dbfff0;
+}
+
+:root[data-theme="dark"] .mode-tab.money.active {
+  background: #372b08;
+  color: #ffec9c;
 }
 
 .mode-content {
@@ -568,10 +713,38 @@ h1 {
   font-weight: 800;
 }
 
-.tag-option span {
+.tag-toggle-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.tag-toggle-button span {
   width: 9px;
   height: 9px;
   border-radius: 999px;
+}
+
+.tag-delete-button {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--muted-bg);
+  color: #b42342;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.tag-delete-button:hover {
+  background: #ffe2e8;
 }
 
 .tag-option.active {
@@ -996,7 +1169,7 @@ textarea:focus {
 }
 
 .summary-card.income {
-  background: #ecfff6;
+  background: #fff9db;
 }
 
 .summary-card.expense {
@@ -1008,7 +1181,7 @@ textarea:focus {
 }
 
 :root[data-theme="dark"] .summary-card.income {
-  background: #123b2d;
+  background: #372b08;
 }
 
 :root[data-theme="dark"] .summary-card.expense {
@@ -1036,6 +1209,80 @@ textarea:focus {
   border-radius: 18px;
   padding: 16px;
   background: #fffaf0;
+}
+
+.piggy-bank-panel {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  border: 1px solid rgba(245, 180, 0, 0.32);
+  border-radius: 18px;
+  padding: 18px;
+  background: #fff9db;
+  box-shadow: var(--shadow);
+}
+
+:root[data-theme="dark"] .piggy-bank-panel {
+  background: #372b08;
+}
+
+.piggy-bank-icon,
+.heart-bank-icon {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  border-radius: 18px;
+  font-size: 1.7rem;
+  font-weight: 900;
+}
+
+.piggy-bank-icon {
+  background: #f5b400;
+  color: #fff;
+}
+
+.piggy-bank-main,
+.heart-bank-main {
+  min-width: 0;
+}
+
+.piggy-bank-main span,
+.heart-bank-main span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted-text);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.piggy-bank-main strong,
+.heart-bank-main strong {
+  display: block;
+  color: var(--heading);
+  font-size: 1.45rem;
+}
+
+.piggy-bank-main p,
+.heart-bank-main p {
+  margin: 8px 0 0;
+  color: var(--muted-text);
+  font-size: 0.86rem;
+}
+
+.piggy-track {
+  height: 12px;
+  overflow: hidden;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: #ffe8a3;
+}
+
+.piggy-track div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ffd45a 0%, #f5a400 100%);
 }
 
 :root[data-theme="dark"] .payment-panel {
@@ -1159,11 +1406,18 @@ textarea:focus {
 
 .setting-list div {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   border-radius: 12px;
   padding: 10px;
   background: var(--soft-bg);
+}
+
+.setting-list-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
 }
 
 .setting-list strong {
@@ -1213,6 +1467,10 @@ textarea:focus {
 }
 
 .heart-meter {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
   padding: 18px;
   background: linear-gradient(135deg, #fff 0%, #fff0f5 100%);
 }
@@ -1287,6 +1545,11 @@ textarea:focus {
   letter-spacing: 0.08em;
 }
 
+.heart-bank-icon {
+  background: #ff5c93;
+  color: #fff;
+}
+
 @media (max-width: 980px) {
   .app-hero,
   .layout,
@@ -1329,7 +1592,7 @@ textarea:focus {
   }
 
   .day-cell {
-    min-height: 48px;
+    min-height: 86px;
     border-radius: 12px;
     padding: 7px;
   }
@@ -1359,5 +1622,14 @@ textarea:focus {
 
   .amount-block {
     justify-items: start;
+  }
+
+  .day-preview-item {
+    font-size: 0.62rem;
+  }
+
+  .piggy-bank-panel,
+  .heart-meter {
+    grid-template-columns: 1fr;
   }
 }

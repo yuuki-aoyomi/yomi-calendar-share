@@ -1,0 +1,17 @@
+name = "yomi-calendar-share"
+main = "server/cloudflare/worker.ts"
+compatibility_date = "2026-05-30"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "yomi-calendar-share-db"
+database_id = "replace-with-your-d1-database-id"
+
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "yomi-calendar-share-images"

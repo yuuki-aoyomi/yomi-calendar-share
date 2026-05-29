@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import type {
   CalendarEvent,
-  CalendarTag,
   CreditCardSetting,
   MoneyRecord,
   PartTimeJob,
@@ -18,9 +17,6 @@ type MoneyModeProps = {
   partTimeJobs: PartTimeJob[];
   creditCards: CreditCardSetting[];
   records: MoneyRecord[];
-  onTagsChange: React.Dispatch<React.SetStateAction<CalendarTag[]>>;
-  onPartTimeJobsChange: React.Dispatch<React.SetStateAction<PartTimeJob[]>>;
-  onCreditCardsChange: React.Dispatch<React.SetStateAction<CreditCardSetting[]>>;
   onRecordsChange: React.Dispatch<React.SetStateAction<MoneyRecord[]>>;
 };
 
@@ -31,9 +27,6 @@ export function MoneyMode({
   partTimeJobs,
   creditCards,
   records,
-  onTagsChange,
-  onPartTimeJobsChange,
-  onCreditCardsChange,
   onRecordsChange,
 }: MoneyModeProps) {
   const [type, setType] = useState<MoneyRecord['type']>('expense');
@@ -42,11 +35,6 @@ export function MoneyMode({
   const [memo, setMemo] = useState('');
   const [isCreditCard, setIsCreditCard] = useState(false);
   const [creditCardId, setCreditCardId] = useState('');
-  const [jobName, setJobName] = useState('');
-  const [hourlyWage, setHourlyWage] = useState('');
-  const [cardName, setCardName] = useState('');
-  const [closingDay, setClosingDay] = useState('末');
-  const [paymentDay, setPaymentDay] = useState('27');
 
   const monthRecords = useMemo(
     () => records.filter((record) => record.date.startsWith(currentMonthKey)),
@@ -82,73 +70,6 @@ export function MoneyMode({
   const monthPaymentTotal = monthPaymentSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
 
   const selectedRecords = monthRecords.filter((record) => record.date === selectedDate);
-
-  const handleAddPartTimeJob = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const name = jobName.trim();
-    if (!name) return;
-
-    const now = new Date().toISOString();
-    const tag: CalendarTag = {
-      id: createId(),
-      name,
-      type: 'work',
-      color: '#1fbf83',
-      createdAt: now,
-      updatedAt: now,
-    };
-    const wage = Number(hourlyWage);
-
-    onTagsChange((current) => [...current, tag]);
-    onPartTimeJobsChange((current) => [
-      ...current,
-      {
-        id: createId(),
-        name,
-        tagId: tag.id,
-        hourlyWage: Number.isFinite(wage) && wage > 0 ? wage : undefined,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ]);
-    setJobName('');
-    setHourlyWage('');
-  };
-
-  const handleAddCreditCard = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const name = cardName.trim();
-    const parsedClosingDay = closingDay === '末' ? 31 : Number(closingDay);
-    const parsedPaymentDay = Number(paymentDay);
-    if (!name || !Number.isFinite(parsedClosingDay) || !Number.isFinite(parsedPaymentDay)) return;
-
-    const now = new Date().toISOString();
-    const tag: CalendarTag = {
-      id: createId(),
-      name,
-      type: 'credit-card',
-      color: '#f59f00',
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    onTagsChange((current) => [...current, tag]);
-    onCreditCardsChange((current) => [
-      ...current,
-      {
-        id: createId(),
-        name,
-        tagId: tag.id,
-        closingDay: parsedClosingDay,
-        paymentDay: parsedPaymentDay,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ]);
-    setCardName('');
-    setClosingDay('末');
-    setPaymentDay('27');
-  };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -188,6 +109,8 @@ export function MoneyMode({
         <SummaryCard label="差額" value={balance} tone={balance >= 0 ? 'income' : 'expense'} />
       </div>
 
+      <PiggyBankPanel balance={balance} incomeTotal={incomeTotal} expenseTotal={expenseTotal} />
+
       <section className="payment-panel">
         <div className="section-title">
           <h3>今月のクレカ引き落とし</h3>
@@ -205,76 +128,6 @@ export function MoneyMode({
           <PaymentScheduleList schedules={selectedPaymentSchedules} emptyText="この日の引き落とし予定はありません。" />
         </section>
       )}
-
-      <div className="settings-grid">
-        <form className="form-card settings-card" onSubmit={handleAddPartTimeJob}>
-          <div className="form-heading">
-            <h3>バイト先</h3>
-            <span>複数登録可</span>
-          </div>
-          <div className="form-grid">
-            <label>
-              名前
-              <input value={jobName} onChange={(event) => setJobName(event.target.value)} placeholder="バイトA" />
-            </label>
-            <label>
-              時給
-              <input
-                type="number"
-                min="1"
-                value={hourlyWage}
-                onChange={(event) => setHourlyWage(event.target.value)}
-                placeholder="任意"
-              />
-            </label>
-          </div>
-          <button className="ghost-button" type="submit">
-            バイトタグを作成
-          </button>
-          <SettingList
-            items={workSummaries.map(({ job, minutes, estimatedPay }) => ({
-              id: job.id,
-              title: job.name,
-              detail: `${Math.floor(minutes / 60)}時間 ${minutes % 60}分${
-                estimatedPay !== undefined ? ` / 約${estimatedPay.toLocaleString()}円` : ''
-              }`,
-            }))}
-            emptyText="バイト先はまだありません。"
-          />
-        </form>
-
-        <form className="form-card settings-card" onSubmit={handleAddCreditCard}>
-          <div className="form-heading">
-            <h3>クレカ</h3>
-            <span>複数登録可</span>
-          </div>
-          <label>
-            カード名
-            <input value={cardName} onChange={(event) => setCardName(event.target.value)} placeholder="クレカA" />
-          </label>
-          <div className="form-grid">
-            <label>
-              締め日
-              <input value={closingDay} onChange={(event) => setClosingDay(event.target.value)} placeholder="末 / 15" />
-            </label>
-            <label>
-              支払日
-              <input value={paymentDay} onChange={(event) => setPaymentDay(event.target.value)} placeholder="27" />
-            </label>
-          </div>
-          <button className="ghost-button" type="submit">
-            クレカタグを作成
-          </button>
-          <SettingList
-            items={creditCards.map((card) => ({
-              id: card.id,
-              title: card.name,
-              detail: `${card.closingDay === 31 ? '末' : card.closingDay}日締め / ${card.paymentDay}日払い`,
-            }))}
-            emptyText="クレカはまだありません。"
-          />
-        </form>
-      </div>
 
       <div className="two-column">
         <form className="form-card" onSubmit={handleSubmit}>
@@ -396,26 +249,34 @@ function SummaryCard({ label, value, tone }: { label: string; value: number; ton
   );
 }
 
-function SettingList({
-  items,
-  emptyText,
+function PiggyBankPanel({
+  balance,
+  incomeTotal,
+  expenseTotal,
 }: {
-  items: Array<{ id: string; title: string; detail: string }>;
-  emptyText: string;
+  balance: number;
+  incomeTotal: number;
+  expenseTotal: number;
 }) {
-  if (items.length === 0) {
-    return <p className="helper-text">{emptyText}</p>;
-  }
+  const savedAmount = Math.max(balance, 0);
+  const progress = incomeTotal > 0 ? Math.min((savedAmount / incomeTotal) * 100, 100) : 0;
 
   return (
-    <div className="setting-list">
-      {items.map((item) => (
-        <div key={item.id}>
-          <strong>{item.title}</strong>
-          <span>{item.detail}</span>
+    <article className="piggy-bank-panel">
+      <div className="piggy-bank-icon" aria-hidden="true">
+        ¥
+      </div>
+      <div className="piggy-bank-main">
+        <span>今月の貯金箱</span>
+        <strong>{savedAmount.toLocaleString()}円</strong>
+        <div className="piggy-track">
+          <div style={{ width: `${progress}%` }} />
         </div>
-      ))}
-    </div>
+        <p>
+          収入 {incomeTotal.toLocaleString()}円 / 支出 {expenseTotal.toLocaleString()}円
+        </p>
+      </div>
+    </article>
   );
 }
 
