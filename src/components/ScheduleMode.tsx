@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { EventForm } from './EventForm';
 import { EventList } from './EventList';
-import type { CalendarEvent, CalendarTag, CreditCardSetting, MoneyRecord } from '../types/calendar';
+import { DailyPhotoPanel } from './DailyPhotoPanel';
+import type { CalendarEvent, CalendarTag, CreditCardSetting, DailyPhoto, MoneyRecord } from '../types/calendar';
 import { buildCreditCardPaymentSchedules } from '../utils/creditCard';
 import { getEventsForDate } from '../utils/recurrence';
 
@@ -10,8 +11,10 @@ type ScheduleModeProps = {
   events: CalendarEvent[];
   moneyRecords: MoneyRecord[];
   creditCards: CreditCardSetting[];
+  dailyPhotos: DailyPhoto[];
   tags: CalendarTag[];
   onEventsChange: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
+  onDailyPhotosChange: React.Dispatch<React.SetStateAction<DailyPhoto[]>>;
   onTagsChange: React.Dispatch<React.SetStateAction<CalendarTag[]>>;
 };
 
@@ -20,11 +23,14 @@ export function ScheduleMode({
   events,
   moneyRecords,
   creditCards,
+  dailyPhotos,
   tags,
   onEventsChange,
+  onDailyPhotosChange,
   onTagsChange,
 }: ScheduleModeProps) {
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
   const editingEvent = events.find((event) => event.id === editingEventId);
   const selectedEvents = useMemo(
     () =>
@@ -41,35 +47,97 @@ export function ScheduleMode({
   );
 
   return (
-    <div className="mode-content two-column">
-      <EventForm
-        selectedDate={selectedDate}
-        events={events}
-        editingEvent={editingEvent}
-        tags={tags}
-        onSaveEvent={(event) =>
-          onEventsChange((current) => {
-            if (editingEventId) {
-              return current.map((item) => (item.id === event.id ? event : item));
-            }
+    <div className="mode-content">
+      <div className="mode-toolbar">
+        <div>
+          <h3>予定</h3>
+          <p>{selectedDate} の予定を確認できます。</p>
+        </div>
+        <button
+          type="button"
+          className="primary-button"
+          onClick={() => {
+            setEditingEventId(null);
+            setIsEditorOpen(true);
+          }}
+        >
+          予定を追加
+        </button>
+      </div>
 
-            return [...current, event];
-          })
-        }
-        onCancelEdit={() => setEditingEventId(null)}
-        onTagsChange={onTagsChange}
-      />
       <EventList
         selectedDate={selectedDate}
         events={selectedEvents}
         paymentSchedules={selectedPaymentSchedules}
         tags={tags}
-        onEditEvent={setEditingEventId}
+        onEditEvent={(id) => {
+          setEditingEventId(id);
+          setIsEditorOpen(true);
+        }}
         onDeleteEvent={(id) => {
           setEditingEventId((current) => (current === id ? null : current));
           onEventsChange((current) => current.filter((event) => event.id !== id));
         }}
       />
+
+      <DailyPhotoPanel
+        selectedDate={selectedDate}
+        photos={dailyPhotos}
+        onPhotosChange={onDailyPhotosChange}
+      />
+
+      {isEditorOpen && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={() => {
+            setEditingEventId(null);
+            setIsEditorOpen(false);
+          }}
+        >
+          <section
+            className="modal-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="予定フォーム"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="modal-close-button"
+              aria-label="予定フォームを閉じる"
+              onClick={() => {
+                setEditingEventId(null);
+                setIsEditorOpen(false);
+              }}
+            >
+              ×
+            </button>
+            <EventForm
+              selectedDate={selectedDate}
+              events={events}
+              editingEvent={editingEvent}
+              tags={tags}
+              onSaveEvent={(event) => {
+                onEventsChange((current) => {
+                  if (editingEventId) {
+                    return current.map((item) => (item.id === event.id ? event : item));
+                  }
+
+                  return [...current, event];
+                });
+                setEditingEventId(null);
+                setIsEditorOpen(false);
+              }}
+              onCancelEdit={() => {
+                setEditingEventId(null);
+                setIsEditorOpen(false);
+              }}
+              onTagsChange={onTagsChange}
+            />
+          </section>
+        </div>
+      )}
     </div>
   );
 }

@@ -9,6 +9,8 @@ type LoveModeProps = {
   onLogsChange: React.Dispatch<React.SetStateAction<LoveLog[]>>;
 };
 
+const monthlyHeartGoal = 100;
+
 export function LoveMode({ selectedDate, currentMonthKey, logs, onLogsChange }: LoveModeProps) {
   const [title, setTitle] = useState('');
   const [memo, setMemo] = useState('');
@@ -48,9 +50,9 @@ export function LoveMode({ selectedDate, currentMonthKey, logs, onLogsChange }: 
     <div className="mode-content">
       <article className="heart-meter">
         <span>今月のハート</span>
-        <strong>{monthHeartTotal}</strong>
+        <strong>{monthHeartTotal} / {monthlyHeartGoal}</strong>
         <div className="heart-track">
-          <div style={{ width: `${Math.min(monthHeartTotal * 8, 100)}%` }} />
+          <div style={{ width: `${Math.min((monthHeartTotal / monthlyHeartGoal) * 100, 100)}%` }} />
         </div>
       </article>
 

@@ -27,6 +27,17 @@ export type EventTimelineItem = {
   title: string;
 };
 
+export type EventImageMeta = {
+  fileName: string;
+  originalSize: number;
+  compressedSize: number;
+  width: number;
+  height: number;
+  mimeType: string;
+  resized?: boolean;
+  compressed?: boolean;
+};
+
 export type CalendarEvent = {
   id: string;
   date: string;
@@ -40,7 +51,16 @@ export type CalendarEvent = {
   recurrence?: RecurrenceRule;
   timelineItems: EventTimelineItem[];
   done?: boolean;
-  imageUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DailyPhoto = {
+  id: string;
+  date: string;
+  imageUrl: string;
+  memo?: string;
+  imageMeta?: EventImageMeta;
   createdAt: string;
   updatedAt: string;
 };
@@ -85,4 +105,19 @@ export type LoveLog = {
   heartCount: number;
   createdAt: string;
   updatedAt: string;
+};
+
+export type AppBackupData = {
+  app: 'yomi-calendar-share';
+  version: 1;
+  exportedAt: string;
+  data: {
+    events: CalendarEvent[];
+    moneyRecords: MoneyRecord[];
+    loveLogs: LoveLog[];
+    tags: CalendarTag[];
+    partTimeJobs: PartTimeJob[];
+    creditCards: CreditCardSetting[];
+    dailyPhotos: DailyPhoto[];
+  };
 };

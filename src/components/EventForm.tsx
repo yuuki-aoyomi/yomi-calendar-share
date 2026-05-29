@@ -61,7 +61,6 @@ export function EventForm({
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [newTagName, setNewTagName] = useState('');
   const [newTagType, setNewTagType] = useState<CalendarTagType>('custom');
-  const [imageUrl, setImageUrl] = useState('');
   const [recurrence, setRecurrence] = useState<RecurrenceInput>('none');
   const [recurrenceUntil, setRecurrenceUntil] = useState('');
   const [timelineItems, setTimelineItems] = useState<EventTimelineItem[]>([]);
@@ -88,7 +87,6 @@ export function EventForm({
     setCategory('schedule');
     setMemo('');
     setSelectedTagIds([]);
-    setImageUrl('');
     setRecurrence('none');
     setRecurrenceUntil('');
     setTimelineItems([]);
@@ -108,7 +106,6 @@ export function EventForm({
     setCategory(editingEvent.category);
     setMemo(editingEvent.memo ?? '');
     setSelectedTagIds(editingEvent.tagIds ?? []);
-    setImageUrl(editingEvent.imageUrl ?? '');
     setRecurrence(editingEvent.recurrence?.frequency ?? 'none');
     setRecurrenceUntil(editingEvent.recurrence?.until ?? '');
     setTimelineItems(editingEvent.timelineItems ?? []);
@@ -155,7 +152,6 @@ export function EventForm({
     setCategory(suggestion.category);
     setMemo(suggestion.memo ?? '');
     setSelectedTagIds(suggestion.tagIds ?? []);
-    setImageUrl(suggestion.imageUrl ?? '');
     setRecurrence(suggestion.recurrence?.frequency ?? 'none');
     setRecurrenceUntil(suggestion.recurrence?.until ?? '');
     setTimelineItems(suggestion.timelineItems ?? []);
@@ -206,7 +202,6 @@ export function EventForm({
             },
       timelineItems,
       done: category === 'todo' ? false : undefined,
-      imageUrl: imageUrl.trim() || undefined,
       createdAt: editingEvent?.createdAt ?? now,
       updatedAt: now,
     });
@@ -373,25 +368,17 @@ export function EventForm({
           </button>
         </div>
       </div>
-
-      <label>
-        写真URL / 写真メモ
-        <input value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="画像URLや写真メモ" />
-      </label>
-
       <div className="form-actions">
-        {isEditing && (
-          <button
-            className="ghost-button"
-            type="button"
-            onClick={() => {
-              resetForm();
-              onCancelEdit();
-            }}
-          >
-            キャンセル
-          </button>
-        )}
+        <button
+          className="ghost-button"
+          type="button"
+          onClick={() => {
+            resetForm();
+            onCancelEdit();
+          }}
+        >
+          キャンセル
+        </button>
         <button className="primary-button" type="submit">
           {isEditing ? '保存する' : '追加する'}
         </button>

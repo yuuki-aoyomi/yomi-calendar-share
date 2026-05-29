@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { CalendarEvent, CreditCardSetting, LoveLog, MoneyRecord } from '../types/calendar';
+import type { CalendarEvent, CreditCardSetting, DailyPhoto, LoveLog, MoneyRecord } from '../types/calendar';
 import { buildCreditCardPaymentSchedules } from '../utils/creditCard';
 import { buildCalendarDays, getMonthKey } from '../utils/date';
 import { eventOccursOnDate } from '../utils/recurrence';
@@ -10,6 +10,7 @@ type CalendarGridProps = {
   events: CalendarEvent[];
   moneyRecords: MoneyRecord[];
   creditCards: CreditCardSetting[];
+  dailyPhotos: DailyPhoto[];
   loveLogs: LoveLog[];
   onSelectDate: (date: string) => void;
 };
@@ -23,6 +24,7 @@ export function CalendarGrid({
   events,
   moneyRecords,
   creditCards,
+  dailyPhotos,
   loveLogs,
   onSelectDate,
 }: CalendarGridProps) {
@@ -45,6 +47,7 @@ export function CalendarGrid({
           const dayEvents = events.filter((event) => eventOccursOnDate(event, day.date));
           const dayMoneyRecords = moneyRecords.filter((record) => record.date === day.date);
           const dayPayments = paymentSchedules.filter((schedule) => schedule.paymentDate === day.date);
+          const dayPhotos = dailyPhotos.filter((photo) => photo.date === day.date);
           const dayLoveLogs = loveLogs.filter((log) => log.date === day.date);
           const paymentTotal = dayPayments.reduce((sum, schedule) => sum + schedule.amount, 0);
           const isSelected = day.date === selectedDate;
@@ -67,6 +70,7 @@ export function CalendarGrid({
                 {dayEvents.length > 0 && <i className="dot schedule-dot" />}
                 {dayMoneyRecords.length > 0 && <i className="dot money-dot" />}
                 {dayPayments.length > 0 && <i className="dot payment-dot" />}
+                {dayPhotos.length > 0 && <i className="dot photo-dot" />}
                 {dayLoveLogs.length > 0 && <i className="dot love-dot" />}
               </span>
               {paymentTotal > 0 && (

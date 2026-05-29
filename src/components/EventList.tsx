@@ -82,7 +82,6 @@ export function EventList({
                 ))}
               </div>
             )}
-            {event.imageUrl && <p className="subtle-text">写真メモ: {event.imageUrl}</p>}
             {(event.tagIds ?? []).length > 0 && (
               <div className="tag-row">
                 {(event.tagIds ?? []).map((tagId) => {

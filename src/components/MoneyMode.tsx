@@ -196,13 +196,15 @@ export function MoneyMode({
         <PaymentScheduleList schedules={monthPaymentSchedules} emptyText="今月の引き落とし予定はありません。" />
       </section>
 
-      <section className="payment-panel">
-        <div className="section-title">
-          <h3>{selectedDate} の引き落とし</h3>
-          <span>{selectedPaymentSchedules.length}件</span>
-        </div>
-        <PaymentScheduleList schedules={selectedPaymentSchedules} emptyText="この日の引き落とし予定はありません。" />
-      </section>
+      {selectedPaymentSchedules.length > 0 && (
+        <section className="payment-panel">
+          <div className="section-title">
+            <h3>{selectedDate} の引き落とし</h3>
+            <span>{selectedPaymentSchedules.length}件</span>
+          </div>
+          <PaymentScheduleList schedules={selectedPaymentSchedules} emptyText="この日の引き落とし予定はありません。" />
+        </section>
+      )}
 
       <div className="settings-grid">
         <form className="form-card settings-card" onSubmit={handleAddPartTimeJob}>
