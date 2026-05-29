@@ -5,7 +5,15 @@ import { ScheduleMode } from './components/ScheduleMode';
 import { MoneyMode } from './components/MoneyMode';
 import { LoveMode } from './components/LoveMode';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
-import type { CalendarEvent, CalendarMode, LoveLog, MoneyRecord } from './types/calendar';
+import type {
+  CalendarEvent,
+  CalendarMode,
+  CalendarTag,
+  CreditCardSetting,
+  LoveLog,
+  MoneyRecord,
+  PartTimeJob,
+} from './types/calendar';
 import { getMonthKey, toDateKey } from './utils/date';
 
 const todayKey = toDateKey(new Date());
@@ -24,6 +32,18 @@ function App() {
   );
   const [loveLogs, setLoveLogs] = useLocalStorageState<LoveLog[]>(
     'yomi-calendar-share:love-logs',
+    [],
+  );
+  const [tags, setTags] = useLocalStorageState<CalendarTag[]>(
+    'yomi-calendar-share:tags',
+    [],
+  );
+  const [partTimeJobs, setPartTimeJobs] = useLocalStorageState<PartTimeJob[]>(
+    'yomi-calendar-share:part-time-jobs',
+    [],
+  );
+  const [creditCards, setCreditCards] = useLocalStorageState<CreditCardSetting[]>(
+    'yomi-calendar-share:credit-cards',
     [],
   );
 
@@ -49,6 +69,7 @@ function App() {
           selectedDate={selectedDate}
           events={events}
           moneyRecords={moneyRecords}
+          creditCards={creditCards}
           loveLogs={loveLogs}
           onMonthChange={setCurrentMonth}
           onSelectDate={setSelectedDate}
@@ -61,7 +82,11 @@ function App() {
             <ScheduleMode
               selectedDate={selectedDate}
               events={events}
+              moneyRecords={moneyRecords}
+              creditCards={creditCards}
+              tags={tags}
               onEventsChange={setEvents}
+              onTagsChange={setTags}
             />
           )}
 
@@ -70,7 +95,12 @@ function App() {
               selectedDate={selectedDate}
               currentMonthKey={currentMonthKey}
               events={events}
+              partTimeJobs={partTimeJobs}
+              creditCards={creditCards}
               records={moneyRecords}
+              onTagsChange={setTags}
+              onPartTimeJobsChange={setPartTimeJobs}
+              onCreditCardsChange={setCreditCards}
               onRecordsChange={setMoneyRecords}
             />
           )}

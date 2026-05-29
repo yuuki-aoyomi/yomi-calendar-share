@@ -1,12 +1,15 @@
 import { useMemo } from 'react';
-import type { CalendarEvent, LoveLog, MoneyRecord } from '../types/calendar';
+import type { CalendarEvent, CreditCardSetting, LoveLog, MoneyRecord } from '../types/calendar';
+import { buildCreditCardPaymentSchedules } from '../utils/creditCard';
 import { buildCalendarDays, getMonthKey } from '../utils/date';
+import { eventOccursOnDate } from '../utils/recurrence';
 
 type CalendarGridProps = {
   currentMonth: Date;
   selectedDate: string;
   events: CalendarEvent[];
   moneyRecords: MoneyRecord[];
+  creditCards: CreditCardSetting[];
   loveLogs: LoveLog[];
   onSelectDate: (date: string) => void;
 };
@@ -19,11 +22,16 @@ export function CalendarGrid({
   selectedDate,
   events,
   moneyRecords,
+  creditCards,
   loveLogs,
   onSelectDate,
 }: CalendarGridProps) {
   const days = useMemo(() => buildCalendarDays(currentMonth), [currentMonth]);
   const currentMonthKey = getMonthKey(currentMonth);
+  const paymentSchedules = useMemo(
+    () => buildCreditCardPaymentSchedules(moneyRecords, creditCards),
+    [moneyRecords, creditCards],
+  );
 
   return (
     <div className="calendar-grid-wrap">
@@ -34,9 +42,11 @@ export function CalendarGrid({
       </div>
       <div className="calendar-grid">
         {days.map((day) => {
-          const dayEvents = events.filter((event) => event.date === day.date);
+          const dayEvents = events.filter((event) => eventOccursOnDate(event, day.date));
           const dayMoneyRecords = moneyRecords.filter((record) => record.date === day.date);
+          const dayPayments = paymentSchedules.filter((schedule) => schedule.paymentDate === day.date);
           const dayLoveLogs = loveLogs.filter((log) => log.date === day.date);
+          const paymentTotal = dayPayments.reduce((sum, schedule) => sum + schedule.amount, 0);
           const isSelected = day.date === selectedDate;
 
           return (
@@ -56,8 +66,12 @@ export function CalendarGrid({
               <span className="day-dots">
                 {dayEvents.length > 0 && <i className="dot schedule-dot" />}
                 {dayMoneyRecords.length > 0 && <i className="dot money-dot" />}
+                {dayPayments.length > 0 && <i className="dot payment-dot" />}
                 {dayLoveLogs.length > 0 && <i className="dot love-dot" />}
               </span>
+              {paymentTotal > 0 && (
+                <span className="payment-badge">引落 {paymentTotal.toLocaleString()}円</span>
+              )}
             </button>
           );
         })}

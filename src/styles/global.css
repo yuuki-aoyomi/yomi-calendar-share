@@ -233,8 +233,26 @@ h1 {
   background: #1fbf83;
 }
 
+.payment-dot {
+  background: #f59f00;
+}
+
 .love-dot {
   background: #ff5c93;
+}
+
+.payment-badge {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 999px;
+  padding: 3px 6px;
+  background: #fff3d8;
+  color: #a35c00;
+  font-size: 0.64rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mode-tabs {
@@ -302,9 +320,136 @@ h1 {
 
 .form-heading span,
 .section-title span,
-.subtle-text {
+.subtle-text,
+.helper-text {
   color: #758094;
   font-size: 0.86rem;
+}
+
+.form-heading.small h4 {
+  margin: 0;
+}
+
+.field-group {
+  display: grid;
+  gap: 10px;
+}
+
+.suggestion-box {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #dce7ff;
+  border-radius: 14px;
+  padding: 12px;
+  background: #f7faff;
+}
+
+.suggestion-list {
+  display: grid;
+  gap: 8px;
+}
+
+.suggestion-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #dce7ff;
+  border-radius: 12px;
+  padding: 10px;
+  background: #fff;
+  color: #243042;
+  text-align: left;
+}
+
+.suggestion-button:hover {
+  border-color: #4f8cff;
+}
+
+.suggestion-button span {
+  color: #687386;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.tag-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #d9dfeb;
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: #fff;
+  color: #4b5565;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.tag-option span {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+
+.tag-option.active {
+  background: #f4f8ff;
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.12);
+}
+
+.tag-create-row {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.timeline-editor {
+  border: 1px solid #e1e6ef;
+  border-radius: 14px;
+  padding: 12px;
+  background: #fbfcff;
+}
+
+.timeline-create-row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.timeline-preview {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid #e4e8f0;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.timeline-preview-item {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border-bottom: 1px solid #eef1f6;
+}
+
+.timeline-preview-item:last-child {
+  border-bottom: 0;
+}
+
+.timeline-preview-item span {
+  color: #526071;
+  font-weight: 800;
+}
+
+.timeline-preview-item strong {
+  min-width: 0;
+  color: #243042;
 }
 
 label {
@@ -344,6 +489,12 @@ textarea:focus {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .primary-button,
@@ -387,6 +538,13 @@ textarea:focus {
 
 .item-card.compact {
   align-items: center;
+}
+
+.item-actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .item-main {
@@ -437,6 +595,81 @@ textarea:focus {
   color: #c2412d;
 }
 
+.category-pill.payment {
+  background: #fff3d8;
+  color: #a35c00;
+}
+
+.category-pill.recurrence {
+  margin-left: 6px;
+  background: #f0edff;
+  color: #6552c7;
+}
+
+.payment-event-card {
+  border-color: rgba(245, 159, 0, 0.28);
+  background: #fffaf0;
+}
+
+.event-timeline {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  margin: 12px 0;
+  border: 1px solid #e5e9f2;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.event-timeline-item {
+  display: grid;
+  grid-template-columns: 58px 22px minmax(0, 1fr);
+  align-items: center;
+  min-height: 42px;
+  padding: 0 12px;
+  border-bottom: 1px solid #edf1f6;
+}
+
+.event-timeline-item:last-child {
+  border-bottom: 0;
+}
+
+.event-timeline-item time {
+  color: #526071;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.event-timeline-item span {
+  position: relative;
+  display: grid;
+  width: 22px;
+  height: 42px;
+  place-items: center;
+}
+
+.event-timeline-item span::before {
+  position: absolute;
+  width: 1px;
+  height: 100%;
+  background: #d7dde8;
+  content: "";
+}
+
+.event-timeline-item span::after {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #aab4c4;
+  content: "";
+}
+
+.event-timeline-item strong {
+  min-width: 0;
+  color: #263244;
+}
+
 .tag-row {
   display: flex;
   flex-wrap: wrap;
@@ -445,6 +678,7 @@ textarea:focus {
 }
 
 .tag-row span {
+  border: 1px solid transparent;
   background: #f1f5f9;
   color: #526071;
 }
@@ -492,6 +726,84 @@ textarea:focus {
 
 .summary-card.work {
   background: #f1f6ff;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.settings-card {
+  box-shadow: 0 12px 30px rgba(44, 57, 81, 0.06);
+}
+
+.payment-panel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(245, 159, 0, 0.24);
+  border-radius: 18px;
+  padding: 16px;
+  background: #fffaf0;
+}
+
+.payment-list {
+  display: grid;
+  gap: 10px;
+}
+
+.payment-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 14px;
+  padding: 12px;
+  background: #fff;
+}
+
+.payment-item span {
+  color: #a35c00;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.payment-item h4 {
+  margin: 4px 0;
+}
+
+.payment-item p {
+  margin: 0;
+  color: #687386;
+  font-size: 0.86rem;
+}
+
+.payment-item strong {
+  color: #9a4d00;
+  white-space: nowrap;
+}
+
+.setting-list {
+  display: grid;
+  gap: 8px;
+}
+
+.setting-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border-radius: 12px;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.setting-list strong {
+  color: #243042;
+}
+
+.setting-list span {
+  color: #687386;
+  font-size: 0.84rem;
 }
 
 .segmented {
@@ -588,7 +900,11 @@ textarea:focus {
   }
 
   .form-grid,
-  .summary-grid {
+  .summary-grid,
+  .settings-grid,
+  .tag-create-row,
+  .timeline-create-row,
+  .timeline-preview-item {
     grid-template-columns: 1fr;
   }
 
@@ -596,6 +912,11 @@ textarea:focus {
   .item-card.compact {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .form-actions,
+  .item-actions {
+    flex-direction: column;
   }
 
   .amount-block {

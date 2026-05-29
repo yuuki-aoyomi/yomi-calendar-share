@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { LoveLog } from '../types/calendar';
+import { createId } from '../utils/id';
 
 type LoveModeProps = {
   selectedDate: string;
@@ -28,7 +29,7 @@ export function LoveMode({ selectedDate, currentMonthKey, logs, onLogsChange }: 
     onLogsChange((current) => [
       ...current,
       {
-        id: crypto.randomUUID(),
+        id: createId(),
         date: selectedDate,
         title: title.trim(),
         memo: memo.trim() || undefined,
@@ -61,7 +62,12 @@ export function LoveMode({ selectedDate, currentMonthKey, logs, onLogsChange }: 
           </div>
           <label>
             タイトル
-            <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例: ありがとうと言ってくれた" />
+            <input
+              required
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="例: ありがとうと言ってくれた"
+            />
           </label>
           <label>
             メモ
