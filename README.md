@@ -21,7 +21,7 @@ AI連携は現在実装していません。
 - JSONバックアップの書き出し / 読み込み
 - Cloudflare D1 snapshot保存
 - Cloudflare R2画像保存
-- 書き込みトークンによる保存API保護
+- トークンによる予定データ・画像API保護
 
 ## Tech Stack
 
@@ -108,9 +108,9 @@ binding = "IMAGES"
 bucket_name = "yomi-calendar-share-images"
 ```
 
-### 3. Configure Write Token
+### 3. Configure Access Token
 
-保存と画像アップロードには `WRITE_TOKEN` が必要です。
+予定の読み込み、保存、画像表示、画像アップロードには `WRITE_TOKEN` が必要です。
 
 Cloudflare Dashboardから設定する場合:
 
@@ -137,6 +137,7 @@ use-a-long-random-string-here
 ```
 
 デプロイ後、アプリ画面の `設定 > 書き込みトークン` に同じ値を入力します。
+トークン未入力のブラウザでは、予定データと画像を読み込めません。
 
 ### 4. Local Cloudflare Test
 
@@ -289,5 +290,5 @@ docs/
 
 - AI機能は未実装です。
 - 認証ユーザー管理は未実装です。
-- `WRITE_TOKEN` は簡易的な書き込み保護です。
+- `WRITE_TOKEN` は簡易的な読み書き保護です。
 - 複数人で本格運用する場合は、Cloudflare Access やログイン機能の追加を検討してください。

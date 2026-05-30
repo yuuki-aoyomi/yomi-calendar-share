@@ -206,7 +206,7 @@ export function SettingsMode({
       <section className="settings-section">
         <div>
           <h3>書き込みトークン</h3>
-          <p>保存や画像アップロードに使います。GitHubには保存されず、このブラウザ内だけに保存されます。</p>
+          <p>予定の読み込み、保存、画像表示に使います。GitHubには保存されず、このブラウザ内だけに保存されます。</p>
         </div>
         <label>
           トークン

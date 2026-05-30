@@ -26,8 +26,12 @@ export const shouldUseRemoteApi = () => {
   return protocol === 'https:' && !isLocalHost;
 };
 
-export const loadCalendarSnapshot = async (calendarId: string): Promise<CalendarDataSnapshot> => {
-  const response = await fetch(apiUrl(`/api/calendar/${encodeURIComponent(calendarId)}`));
+export const loadCalendarSnapshot = async (calendarId: string, writeToken: string): Promise<CalendarDataSnapshot> => {
+  const response = await fetch(apiUrl(`/api/calendar/${encodeURIComponent(calendarId)}`), {
+    headers: {
+      authorization: `Bearer ${writeToken}`,
+    },
+  });
 
   if (!response.ok) {
     throw new Error('カレンダーデータの読み込みに失敗しました。');
@@ -89,4 +93,11 @@ export const uploadDailyPhoto = async ({
   }
 
   return (await response.json()) as ImageUploadPayload;
+};
+
+export const withReadToken = (url: string, writeToken: string) => {
+  if (!shouldUseRemoteApi() || !url.startsWith('/api/images/') || !writeToken.trim()) return url;
+
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}token=${encodeURIComponent(writeToken)}`;
 };

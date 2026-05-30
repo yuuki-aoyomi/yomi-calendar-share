@@ -56,6 +56,10 @@ async function handleCalendarRequest(request: Request, env: Env, url: URL): Prom
   }
 
   if (request.method === 'GET') {
+    const unauthorizedResponse = requireWriteToken(request, env);
+
+    if (unauthorizedResponse) return unauthorizedResponse;
+
     const row = await env.DB.prepare(
       'SELECT snapshot_json FROM calendar_snapshots WHERE calendar_id = ?',
     )
@@ -145,6 +149,10 @@ async function handleImageRead(request: Request, env: Env, url: URL): Promise<Re
   }
 
   const cache = (caches as CloudflareCacheStorage).default;
+  const unauthorizedResponse = requireWriteToken(request, env);
+
+  if (unauthorizedResponse) return unauthorizedResponse;
+
   const cachedResponse = await cache.match(request);
 
   if (cachedResponse) {
@@ -188,8 +196,9 @@ function requireWriteToken(request: Request, env: Env): Response | undefined {
   const authorization = request.headers.get('authorization') ?? '';
   const bearerToken = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length).trim() : '';
   const headerToken = request.headers.get('x-write-token')?.trim() ?? '';
+  const queryToken = new URL(request.url).searchParams.get('token')?.trim() ?? '';
 
-  if (bearerToken === env.WRITE_TOKEN || headerToken === env.WRITE_TOKEN) {
+  if (bearerToken === env.WRITE_TOKEN || headerToken === env.WRITE_TOKEN || queryToken === env.WRITE_TOKEN) {
     return undefined;
   }
 

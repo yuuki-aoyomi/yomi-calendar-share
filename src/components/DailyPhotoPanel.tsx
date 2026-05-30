@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { shouldUseRemoteApi, uploadDailyPhoto } from '../api/calendarApi';
+import { shouldUseRemoteApi, uploadDailyPhoto, withReadToken } from '../api/calendarApi';
 import type { DailyPhoto, EventImageMeta } from '../types/calendar';
 import { compressImageFile, formatBytes } from '../utils/imageCompression';
 import { createId } from '../utils/id';
@@ -139,7 +139,7 @@ export function DailyPhotoPanel({ calendarId, writeToken, selectedDate, photos, 
         <div className="daily-photo-grid">
           {selectedPhotos.map((photo) => (
             <article className="daily-photo-card" key={photo.id}>
-              {photo.imageUrl && <img src={photo.imageUrl} alt={photo.memo || `${photo.date} の写真`} />}
+              {photo.imageUrl && <img src={withReadToken(photo.imageUrl, writeToken)} alt={photo.memo || `${photo.date} の写真`} />}
               {photo.memo && <p>{photo.memo}</p>}
               {photo.imageMeta && (
                 <span>

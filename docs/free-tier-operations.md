@@ -9,7 +9,7 @@ Cloudflare Workers / D1 / R2 の無料枠だけで数年運用するための方
 - SSRはしない。Reactは静的assetsとして配信する。
 - DBはD1 snapshot保存から始める。
 - 画像はR2に保存し、D1には画像キーとmetadataだけ保存する。
-- 書き込み系APIは `WRITE_TOKEN` を必須にする。
+- 読み書きAPIは `WRITE_TOKEN` を必須にする。
 
 ## 無料枠を守るための設計
 

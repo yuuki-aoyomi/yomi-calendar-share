@@ -76,10 +76,11 @@ function App() {
 
   useEffect(() => {
     if (!remoteApiEnabled) return;
+    if (!writeToken.trim()) return;
 
     let isCancelled = false;
 
-    loadCalendarSnapshot(calendarId)
+    loadCalendarSnapshot(calendarId, writeToken)
       .then((snapshot) => {
         if (isCancelled) return;
 
@@ -108,6 +109,7 @@ function App() {
     setMoneyRecords,
     setPartTimeJobs,
     setTags,
+    writeToken,
   ]);
 
   useEffect(() => {
