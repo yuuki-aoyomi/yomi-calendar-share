@@ -177,10 +177,12 @@ npm run cf:deploy
 `.env.example`:
 
 ```env
-VITE_RUNTIME_TARGET=local
+VITE_RUNTIME_TARGET=auto
 VITE_API_BASE_URL=
 VITE_CALENDAR_ID=default
 ```
+
+`VITE_RUNTIME_TARGET=auto` の場合、localhostではlocalStorage、本番HTTPSでは同じoriginのAPIを使います。
 
 Cloudflare Workers assets と同じoriginで動かす場合、通常 `VITE_API_BASE_URL` は空でOKです。
 

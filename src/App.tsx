@@ -141,7 +141,7 @@ function App() {
         <div>
           <p className="eyebrow">Shared calendar foundation</p>
           <h1>Yomi Calendar Share</h1>
-          <p className="hero-copy">予定・お金・ラブログを同じ日付軸で整理する共有カレンダーの土台です。</p>
+          <p className="hero-copy">予定・お金・ラブログを同じ日付軸で整理する共有カレンダー</p>
         </div>
         <div className="hero-side">
           <button

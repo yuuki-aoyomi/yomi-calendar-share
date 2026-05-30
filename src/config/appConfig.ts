@@ -1,4 +1,4 @@
-export type RuntimeTarget = 'local' | 'cloudflare';
+export type RuntimeTarget = 'auto' | 'local' | 'cloudflare';
 
 export type AppConfig = {
   runtimeTarget: RuntimeTarget;
@@ -10,7 +10,7 @@ export type AppConfig = {
 
 // Cloudflare Pages / Workers でも、他の環境でも差し替えやすい入口です。
 export const appConfig: AppConfig = {
-  runtimeTarget: (import.meta.env.VITE_RUNTIME_TARGET as RuntimeTarget | undefined) ?? 'local',
+  runtimeTarget: (import.meta.env.VITE_RUNTIME_TARGET as RuntimeTarget | undefined) ?? 'auto',
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
   calendarId: import.meta.env.VITE_CALENDAR_ID ?? 'default',
   imagePublicBaseUrl: import.meta.env.VITE_IMAGE_PUBLIC_BASE_URL,

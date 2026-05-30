@@ -15,7 +15,16 @@ type ImageUploadPayload = {
 
 const apiUrl = (path: string) => `${appConfig.apiBaseUrl}${path}`;
 
-export const shouldUseRemoteApi = () => appConfig.runtimeTarget === 'cloudflare' || appConfig.apiBaseUrl.length > 0;
+export const shouldUseRemoteApi = () => {
+  if (appConfig.runtimeTarget === 'cloudflare' || appConfig.apiBaseUrl.length > 0) return true;
+  if (appConfig.runtimeTarget === 'local') return false;
+  if (typeof window === 'undefined') return false;
+
+  const { hostname, protocol } = window.location;
+  const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+
+  return protocol === 'https:' && !isLocalHost;
+};
 
 export const loadCalendarSnapshot = async (calendarId: string): Promise<CalendarDataSnapshot> => {
   const response = await fetch(apiUrl(`/api/calendar/${encodeURIComponent(calendarId)}`));
