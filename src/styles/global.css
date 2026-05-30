@@ -111,11 +111,24 @@ h1 {
 .item-card,
 .summary-card,
 .empty-state,
+.unlock-panel,
 .heart-meter {
   border: 1px solid rgba(116, 127, 148, 0.16);
   border-radius: 18px;
   background: var(--panel-bg);
   box-shadow: var(--shadow);
+}
+
+.unlock-panel {
+  display: grid;
+  gap: 20px;
+  max-width: 560px;
+  margin: min(18vh, 120px) auto 0;
+  padding: 28px;
+}
+
+.unlock-panel h1 {
+  font-size: clamp(2rem, 4vw, 3.2rem);
 }
 
 .ai-card {

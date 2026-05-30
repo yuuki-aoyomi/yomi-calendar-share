@@ -137,6 +137,33 @@ function App() {
     return () => window.clearTimeout(timeoutId);
   }, [creditCards, dailyPhotos, events, isRemoteLoaded, loveLogs, moneyRecords, partTimeJobs, tags, writeToken]);
 
+  if (remoteApiEnabled && !writeToken.trim()) {
+    return (
+      <main className="app-shell">
+        <section className="unlock-panel">
+          <div>
+            <p className="eyebrow">Yomi Calendar Share</p>
+            <h1>カレンダーを開く</h1>
+            <p className="hero-copy">
+              このカレンダーの予定データを読み込むには、書き込みトークンが必要です。
+            </p>
+          </div>
+          <label>
+            書き込みトークン
+            <input
+              type="password"
+              value={writeToken}
+              onChange={(event) => setWriteToken(event.target.value)}
+              placeholder="Cloudflare secret と同じ値"
+              autoFocus
+            />
+          </label>
+          <p className="helper-text">トークンはこのブラウザ内にだけ保存されます。</p>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="app-shell">
       <section className="app-hero">
