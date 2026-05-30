@@ -1,259 +1,291 @@
 # Yomi Calendar Share
 
-共有カレンダー機能を将来的に追加する前提で作る、React + TypeScript 製のカレンダーアプリです。
+React + TypeScript + Vite で作る、予定・お金・ラブログを同じ日付軸で扱う共有カレンダーアプリです。
 
-現時点ではブラウザだけで動く MVP として作っています。  
-次の段階では Cloudflare Workers API / D1 / R2 で動く構成へ移行します。
+Cloudflare Workers / D1 / R2 でホストできます。将来自宅サーバー、Docker、VPSへ移行できるように、Cloudflare固有コードは `server/cloudflare/` に隔離しています。
 
-AI連携は当面実装対象外です。
+AI連携は現在実装していません。
 
-ただし Cloudflare に強く依存する構成にはしません。Cloudflare は最初の実行環境として扱い、
-将来自宅サーバー、Docker、VPSへ移行できるように entrypoint / DB / storage を分離します。
-
-このプロジェクトは、React / TypeScript の学習を兼ねて、Codex と相談しながら設計・実装したものです。
-
-## 目的
-
-`yomi-calendar` は個人用・ローカル中心のカレンダーとして残し、この `yomi-calendar-share` は将来的に以下を追加しやすい構成にすることを目的にしています。
-
-- 共有カレンダー
-- ユーザー認証
-- API
-- DB
-- AIによる予定提案やアドバイス
-
-## 使用技術
-
-- React
-- TypeScript
-- Vite
-- localStorage（現MVP）
-- Cloudflare Workers / D1 / R2（次段階の移行先）
-
-状態管理ライブラリは使わず、`useState` / `useMemo` / custom hooks を中心に実装しています。
-
-## 主な機能
-
-### 予定モード
+## Features
 
 - 月表示カレンダー
-- 先月 / 来月の切り替え
-- 今日の日付の強調表示
-- 日付選択
-- 選択日の予定一覧表示
-- 予定追加
-- 予定編集
-- 開始時刻 / 終了時刻つき予定
-- 予定削除
-- 繰り返し予定
-  - 毎週
-  - 毎月
-- 予定内タイムスケジュール
-- 過去予定からの入力候補
-- カテゴリ管理
-  - 通常予定
-  - 日記
-  - ToDo
-  - 細かい予定
-  - 写真メモ
-- タグ保存
-- 日ごとの写真保存
-- 画像の比率維持リサイズ
-- 1MB超え画像の軽量化
+- 先月 / 来月 / 今日への移動
+- 予定、日記、ToDo、細かい予定、写真メモ
+- タグ管理
+- 日別写真
+- 収入 / 支出記録
+- バイト予定からの概算給料計算
+- クレカ締め日 / 支払日からの引き落とし予定
+- ラブログとハート貯金
+- ライト / ダークモード
+- JSONバックアップの書き出し / 読み込み
+- Cloudflare D1 snapshot保存
+- Cloudflare R2画像保存
+- 書き込みトークンによる保存API保護
 
-### お金モード
+## Tech Stack
 
-- 収入 / 支出の登録
-- 金額、カテゴリ、メモの保存
-- 月ごとの合計収入
-- バイト予定からの概算収入表示
-- 月ごとの合計支出
-- 月ごとの差額表示
-- 複数バイト先の登録
-- 複数クレカの登録
-- クレカ締め日 / 支払日の保存
-- クレカ引き落とし予定の自動表示
+- Frontend: React, TypeScript, Vite
+- Runtime: Cloudflare Workers
+- Database: Cloudflare D1
+- Image storage: Cloudflare R2
+- Local fallback: localStorage
 
-### ラブモード
+## Public Repository Safety
 
-- 相手のいいところ、良かった行動の記録
-- メモ保存
-- ハート数の保存
-- 月ごとのハート合計 100 ハート目標表示
-- ハートがたまっていく見た目
+このリポジトリは public で公開できます。
 
-### 設定
+コミットしてよいもの:
 
-- ライト / ダークモード切り替え
-- 全データのJSONエクスポート
-- バックアップJSONのインポート
-- 保存対象データ件数の確認
-- 画像保存ポリシーの表示
+- `wrangler.toml`
+- `.env.example`
+- `.dev.vars.example`
+- migration SQL
+- source code
 
-### AIアドバイス枠
+コミットしてはいけないもの:
 
-本物のAI連携は未実装です。  
-将来的な機能追加を想定して、画面上に仮の「AIアドバイス」カードを置いています。
+- `.env`
+- `.env.local`
+- `.dev.vars`
+- Cloudflare API token
+- `WRITE_TOKEN`
+- R2 access key / secret key
 
-## セットアップ
+`.gitignore` で上記のローカル秘密情報は除外しています。
+
+## Quick Start
 
 ```bash
 npm install
-```
-
-## 開発サーバー起動
-
-```bash
 npm run dev
 ```
 
-表示された URL をブラウザで開きます。
-
-例:
+Vite のローカル開発では、保存先はブラウザの `localStorage` です。
 
 ```text
 http://localhost:5173/
 ```
 
-## ビルド
+## Cloudflare Hosting
+
+このリポジトリの `wrangler.toml` は、以下のCloudflareリソース名を前提にしています。
+
+```txt
+D1 database: yomi-calendar-share-db
+R2 bucket:   yomi-calendar-share-images
+```
+
+`database_id` は `wrangler.toml` に設定済みです。自分のCloudflareアカウントでforkして使う場合は、自分のD1のIDへ置き換えてください。
+
+### 1. Cloudflare Dashboardで確認 / 作成
+
+ブラウザで Cloudflare Dashboard を開きます。
+
+1. Workers & Pages に移動
+2. D1 で `yomi-calendar-share-db` を確認、なければ作成
+3. R2 で `yomi-calendar-share-images` を確認、なければ作成
+4. D1 の `Database ID` が `wrangler.toml` の `database_id` と一致しているか確認
+
+CLIで操作する場合だけ、以下を使います。
 
 ```bash
+npx wrangler login
+npx wrangler d1 create yomi-calendar-share-db
+npx wrangler r2 bucket create yomi-calendar-share-images
+```
+
+### 2. wrangler.toml を確認
+
+```toml
+[[d1_databases]]
+binding = "DB"
+database_name = "yomi-calendar-share-db"
+database_id = "your-d1-database-id"
+
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "yomi-calendar-share-images"
+```
+
+### 3. Configure Write Token
+
+保存と画像アップロードには `WRITE_TOKEN` が必要です。
+
+Cloudflare Dashboardから設定する場合:
+
+1. Workers & Pages
+2. `yomi-calendar-share`
+3. Settings
+4. Variables and Secrets
+5. Secret を追加
+6. Name: `WRITE_TOKEN`
+7. Value: 長いランダム文字列
+
+CLIで設定する場合:
+
+```bash
+npx wrangler secret put WRITE_TOKEN
+```
+
+長いランダム文字列を入力してください。
+
+例:
+
+```text
+use-a-long-random-string-here
+```
+
+デプロイ後、アプリ画面の `設定 > 書き込みトークン` に同じ値を入力します。
+
+### 4. Local Cloudflare Test
+
+Windows PowerShell:
+
+```powershell
+Copy-Item .dev.vars.example .dev.vars
+```
+
+`.dev.vars` の `WRITE_TOKEN` を本番とは別の長い文字列に変更します。
+
+Migration:
+
+```bash
+npm run db:migrate:local
+```
+
+Cloudflare構成で起動:
+
+```bash
+npm run cf:dev
+```
+
+### 5. Apply Remote Migration
+
+```bash
+npm run db:migrate:remote
+```
+
+### 6. Deploy
+
+```bash
+npm run cf:deploy
+```
+
+## Environment Variables
+
+`.env.example`:
+
+```env
+VITE_RUNTIME_TARGET=local
+VITE_API_BASE_URL=
+VITE_CALENDAR_ID=default
+```
+
+Cloudflare Workers assets と同じoriginで動かす場合、通常 `VITE_API_BASE_URL` は空でOKです。
+
+別originのAPIへ向ける場合だけ設定します。
+
+```env
+VITE_RUNTIME_TARGET=cloudflare
+VITE_API_BASE_URL=https://example.your-worker.workers.dev
+VITE_CALENDAR_ID=default
+```
+
+重要: `WRITE_TOKEN` は `.env` や `VITE_*` に入れないでください。Vite の `VITE_*` はブラウザ配信物に含まれます。
+
+## Scripts
+
+```bash
+npm run dev
 npm run build
-```
-
-TypeScript の型チェックと Vite の本番ビルドを行います。
-
-## プレビュー
-
-```bash
 npm run preview
+npm run worker:check
+npm run cf:dev
+npm run cf:deploy
+npm run db:migrate:local
+npm run db:migrate:remote
 ```
 
-ビルド後の成果物をローカルで確認できます。
+## Data Model
 
-## ファイル構成
+現在はD1に `calendar_snapshots` としてカレンダー全体をJSON snapshotで保存します。
+
+理由:
+
+- MVP移行時にUIを壊しにくい
+- D1 write回数を抑えやすい
+- 将来自宅サーバーへ移行しやすい
+
+データが増えたら、次のように正規化できます。
+
+- events
+- money_records
+- love_logs
+- tags
+- part_time_jobs
+- credit_cards
+- daily_photos
+
+## Images
+
+画像はフロントで軽量化してからR2にアップロードします。
+
+- D1には `imageKey` とmetadataを保存
+- R2の固定公開URLは保存しない
+- 表示URLはAPI経由で生成
+
+これにより、将来自宅サーバーでは `imageKey` をローカルファイルパスやMinIO keyへ置き換えられます。
+
+## Portability
+
+Cloudflare版:
+
+```text
+server/cloudflare/worker.ts
+D1
+R2
+```
+
+将来自宅サーバー版の想定:
+
+```text
+server/node/
+SQLite or PostgreSQL
+local filesystem or MinIO
+```
+
+API契約は変えず、entrypoint / database / storage adapter を差し替える方針です。
+
+詳しくは以下を参照してください。
+
+- `docs/portable-hosting-plan.md`
+- `docs/free-tier-operations.md`
+- `docs/cloudflare-migration-checklist.md`
+
+## Project Structure
 
 ```text
 src/
-  App.tsx
-  main.tsx
-  components/
-    Calendar.tsx
-    CalendarHeader.tsx
-    CalendarGrid.tsx
-    ModeTabs.tsx
-    EventForm.tsx
-    EventList.tsx
-    DailyPhotoPanel.tsx
-    ScheduleMode.tsx
-    MoneyMode.tsx
-    LoveMode.tsx
-    SettingsMode.tsx
-  hooks/
-    useLocalStorageState.ts
   api/
-    contracts.ts
+  components/
   config/
-    appConfig.ts
+  hooks/
   repositories/
-    calendarRepository.ts
+  storage/
+  styles/
+  types/
+  utils/
 server/
   core/
-    calendarSnapshot.ts
-    http.ts
   cloudflare/
-    worker.ts
-  storage/
-    storageService.ts
-  styles/
-    global.css
-  types/
-    calendar.ts
-  utils/
-    backup.ts
-    creditCard.ts
-    date.ts
-    id.ts
-    imageCompression.ts
-    recurrence.ts
+migrations/
+docs/
 ```
 
-## 設計メモ
+## Notes
 
-### localStorage 処理の分離
-
-保存処理は `src/hooks/useLocalStorageState.ts` にまとめています。
-
-UIコンポーネントが直接 `localStorage` を触らないようにしておくことで、将来的に API や DB に置き換えるときの変更範囲を小さくできます。
-
-次の移行では、`src/repositories/calendarRepository.ts` の境界に寄せてから D1 実装へ差し替えます。
-
-### 型定義の分離
-
-予定、お金、ラブログ、タグ、クレカ、バイト先、日別写真、バックアップの型は `src/types/calendar.ts` にまとめています。
-
-データ構造を明確にしておくことで、将来 AI に渡すデータや API のリクエスト / レスポンス設計に流用しやすくなります。
-
-### Cloudflare に依存しすぎない設計
-
-初期デプロイ先として Cloudflare Pages / R2 などを想定しつつ、将来的に VPS、Docker、S3互換ストレージ、PostgreSQL などへ移行できるようにします。
-
-そのため、現時点では R2 固有のURLやAPIをUIに埋め込まず、画像は将来的に `imageKey` とストレージ層で扱える形に移行する前提です。
-
-画像保存の境界は `src/storage/storageService.ts` に置きます。
-
-Cloudflare固有のコードは `server/cloudflare/worker.ts` に隔離します。
-自宅サーバー移行時は `server/node` などの別entrypointを追加する想定です。
-
-### バックアップ
-
-設定画面から全データをJSONとして書き出し、読み込みできます。
-
-現時点では localStorage の内容を可逆に保存する目的です。将来的には以下のようなフォルダ/zip形式への拡張を想定しています。
-
-```text
-backup/
-  metadata.json
-  events.json
-  settings.json
-  images/
-    originals/
-    optimized/
-```
-
-## 今回実装していないもの
-
-- バックエンド
-- DB
-- 認証
-- 本格的な共有機能
-- R2などへの画像アップロード
-- 本物のAI連携
-- 給料の厳密な計算
-
-## 今後の拡張候補
-
-- ToDo の完了切り替え
-- お金記録の編集
-- ラブログの編集
-- Cloudflare Workers API
-- D1 / KV / R2 などを使った保存
-- S3互換ストレージやローカル保存への差し替え
-- ログイン機能
-- 共有カレンダーのメンバー管理
-- 日別写真の originals / optimized 分離保存
-- zip形式のバックアップ
-- AIによる予定提案、支出アドバイス、振り返り生成
-
-## GitHub へ初回 push する手順
-
-初回は commit を作ってから push します。
-
-```bash
-git add .
-git commit -m "Initial commit"
-git branch -M main
-git push -u origin main
-```
-
-`src refspec main does not match any` が出る場合は、まだ commit が存在しない可能性があります。
+- AI機能は未実装です。
+- 認証ユーザー管理は未実装です。
+- `WRITE_TOKEN` は簡易的な書き込み保護です。
+- 複数人で本格運用する場合は、Cloudflare Access やログイン機能の追加を検討してください。

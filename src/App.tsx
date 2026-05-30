@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { loadCalendarSnapshot, saveCalendarSnapshot, shouldUseRemoteApi } from './api/calendarApi';
+import { appConfig } from './config/appConfig';
 import { Calendar } from './components/Calendar';
 import { ModeTabs } from './components/ModeTabs';
 import { ScheduleMode } from './components/ScheduleMode';
@@ -20,7 +21,7 @@ import type {
 import { getMonthKey, toDateKey } from './utils/date';
 
 const todayKey = toDateKey(new Date());
-const calendarId = 'default';
+const calendarId = appConfig.calendarId;
 const remoteApiEnabled = shouldUseRemoteApi();
 
 function App() {
@@ -60,9 +61,14 @@ function App() {
     'yomi-calendar-share:theme',
     'light',
   );
+  const [writeToken, setWriteToken] = useLocalStorageState<string>(
+    'yomi-calendar-share:write-token',
+    '',
+  );
 
   const currentMonthKey = useMemo(() => getMonthKey(currentMonth), [currentMonth]);
   const [isRemoteLoaded, setIsRemoteLoaded] = useState(!remoteApiEnabled);
+  const lastSavedRemoteSnapshot = useRef('');
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -84,6 +90,7 @@ function App() {
         setPartTimeJobs(snapshot.partTimeJobs);
         setCreditCards(snapshot.creditCards);
         setDailyPhotos(snapshot.dailyPhotos);
+        lastSavedRemoteSnapshot.current = JSON.stringify(snapshot);
         setIsRemoteLoaded(true);
       })
       .catch(() => {
@@ -105,9 +112,10 @@ function App() {
 
   useEffect(() => {
     if (!remoteApiEnabled || !isRemoteLoaded) return;
+    if (!writeToken.trim()) return;
 
     const timeoutId = window.setTimeout(() => {
-      void saveCalendarSnapshot(calendarId, {
+      const snapshot = {
         events,
         moneyRecords,
         loveLogs,
@@ -115,11 +123,17 @@ function App() {
         partTimeJobs,
         creditCards,
         dailyPhotos,
-      });
-    }, 500);
+      };
+      const snapshotJson = JSON.stringify(snapshot);
+
+      if (snapshotJson === lastSavedRemoteSnapshot.current) return;
+
+      lastSavedRemoteSnapshot.current = snapshotJson;
+      void saveCalendarSnapshot(calendarId, snapshot, writeToken);
+    }, 2000);
 
     return () => window.clearTimeout(timeoutId);
-  }, [creditCards, dailyPhotos, events, isRemoteLoaded, loveLogs, moneyRecords, partTimeJobs, tags]);
+  }, [creditCards, dailyPhotos, events, isRemoteLoaded, loveLogs, moneyRecords, partTimeJobs, tags, writeToken]);
 
   return (
     <main className="app-shell">
@@ -164,6 +178,7 @@ function App() {
           {activeMode === 'schedule' && (
             <ScheduleMode
               calendarId={calendarId}
+              writeToken={writeToken}
               selectedDate={selectedDate}
               events={events}
               moneyRecords={moneyRecords}
@@ -218,6 +233,7 @@ function App() {
                 </div>
                 <SettingsMode
                   theme={theme}
+                  writeToken={writeToken}
                   backupData={{
                     events,
                     moneyRecords,
@@ -237,6 +253,7 @@ function App() {
                     setDailyPhotos(data.dailyPhotos);
                   }}
                   onThemeChange={setTheme}
+                  onWriteTokenChange={setWriteToken}
                   onTagsChange={setTags}
                   onPartTimeJobsChange={setPartTimeJobs}
                   onCreditCardsChange={setCreditCards}

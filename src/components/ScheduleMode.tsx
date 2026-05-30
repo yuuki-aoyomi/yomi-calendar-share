@@ -8,6 +8,7 @@ import { getEventsForDate } from '../utils/recurrence';
 
 type ScheduleModeProps = {
   calendarId: string;
+  writeToken: string;
   selectedDate: string;
   events: CalendarEvent[];
   moneyRecords: MoneyRecord[];
@@ -21,6 +22,7 @@ type ScheduleModeProps = {
 
 export function ScheduleMode({
   calendarId,
+  writeToken,
   selectedDate,
   events,
   moneyRecords,
@@ -84,6 +86,7 @@ export function ScheduleMode({
 
       <DailyPhotoPanel
         calendarId={calendarId}
+        writeToken={writeToken}
         selectedDate={selectedDate}
         photos={dailyPhotos}
         onPhotosChange={onDailyPhotosChange}

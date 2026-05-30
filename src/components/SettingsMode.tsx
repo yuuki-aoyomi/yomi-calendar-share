@@ -5,9 +5,11 @@ import { createId } from '../utils/id';
 
 type SettingsModeProps = {
   theme: 'light' | 'dark';
+  writeToken: string;
   backupData: AppBackupData['data'];
   onImportBackup: (data: AppBackupData['data']) => void;
   onThemeChange: (theme: 'light' | 'dark') => void;
+  onWriteTokenChange: (writeToken: string) => void;
   onTagsChange: React.Dispatch<React.SetStateAction<CalendarTag[]>>;
   onPartTimeJobsChange: React.Dispatch<React.SetStateAction<PartTimeJob[]>>;
   onCreditCardsChange: React.Dispatch<React.SetStateAction<CreditCardSetting[]>>;
@@ -15,9 +17,11 @@ type SettingsModeProps = {
 
 export function SettingsMode({
   theme,
+  writeToken,
   backupData,
   onImportBackup,
   onThemeChange,
+  onWriteTokenChange,
   onTagsChange,
   onPartTimeJobsChange,
   onCreditCardsChange,
@@ -197,6 +201,22 @@ export function SettingsMode({
             />
           </form>
         </div>
+      </section>
+
+      <section className="settings-section">
+        <div>
+          <h3>書き込みトークン</h3>
+          <p>保存や画像アップロードに使います。GitHubには保存されず、このブラウザ内だけに保存されます。</p>
+        </div>
+        <label>
+          トークン
+          <input
+            type="password"
+            value={writeToken}
+            onChange={(event) => onWriteTokenChange(event.target.value)}
+            placeholder="Cloudflare secret と同じ値"
+          />
+        </label>
       </section>
 
       <section className="settings-section">

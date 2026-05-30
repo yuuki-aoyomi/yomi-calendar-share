@@ -10,7 +10,7 @@ not_found_handling = "single-page-application"
 [[d1_databases]]
 binding = "DB"
 database_name = "yomi-calendar-share-db"
-database_id = "replace-with-your-d1-database-id"
+database_id = "c2d6cf22-5bc6-48c9-961b-a4b592a150f2"
 
 [[r2_buckets]]
 binding = "IMAGES"

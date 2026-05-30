@@ -6,6 +6,7 @@ type Env = {
   DB: D1Database;
   IMAGES: R2Bucket;
   ASSETS: Fetcher;
+  WRITE_TOKEN: string;
 };
 
 type CalendarSnapshotRow = {
@@ -18,6 +19,13 @@ type ImageUploadResponse = {
   size: number;
   contentType: string;
 };
+
+type CloudflareCacheStorage = CacheStorage & {
+  default: Cache;
+};
+
+const maxSnapshotBytes = 1_000_000;
+const maxImageBytes = 1_200_000;
 
 // Cloudflare専用のentrypointです。アプリ本体のHTTP契約はserver/core側へ逃がします。
 export default {
@@ -62,10 +70,19 @@ async function handleCalendarRequest(request: Request, env: Env, url: URL): Prom
   }
 
   if (request.method === 'PUT') {
+    const unauthorizedResponse = requireWriteToken(request, env);
+
+    if (unauthorizedResponse) return unauthorizedResponse;
+
     const body = await request.json<{ snapshot?: CalendarDataSnapshot }>().catch(() => undefined);
 
     if (!body?.snapshot) {
       return jsonError('bad_request', 'snapshot is required.', 400);
+    }
+    const snapshotJson = JSON.stringify(body.snapshot);
+
+    if (new TextEncoder().encode(snapshotJson).length > maxSnapshotBytes) {
+      return jsonError('payload_too_large', 'snapshot is too large.', 413);
     }
 
     await env.DB.prepare(
@@ -77,7 +94,7 @@ async function handleCalendarRequest(request: Request, env: Env, url: URL): Prom
           updated_at = CURRENT_TIMESTAMP
       `,
     )
-      .bind(calendarId, JSON.stringify(body.snapshot))
+      .bind(calendarId, snapshotJson)
       .run();
 
     return json({ ok: true });
@@ -87,6 +104,10 @@ async function handleCalendarRequest(request: Request, env: Env, url: URL): Prom
 }
 
 async function handleImageUpload(request: Request, env: Env): Promise<Response> {
+  const unauthorizedResponse = requireWriteToken(request, env);
+
+  if (unauthorizedResponse) return unauthorizedResponse;
+
   const formData = await request.formData();
   const file = formData.get('file');
   const calendarId = String(formData.get('calendarId') ?? 'default').trim();
@@ -95,6 +116,10 @@ async function handleImageUpload(request: Request, env: Env): Promise<Response> 
 
   if (!(file instanceof File)) {
     return jsonError('bad_request', 'file is required.', 400);
+  }
+
+  if (file.size > maxImageBytes) {
+    return jsonError('payload_too_large', 'image is too large.', 413);
   }
 
   const extension = getImageExtension(file.type, file.name);
@@ -119,6 +144,13 @@ async function handleImageRead(request: Request, env: Env, url: URL): Promise<Re
     return jsonError('method_not_allowed', 'Unsupported image method.', 405);
   }
 
+  const cache = (caches as CloudflareCacheStorage).default;
+  const cachedResponse = await cache.match(request);
+
+  if (cachedResponse) {
+    return cachedResponse;
+  }
+
   const key = decodeURIComponent(url.pathname.replace('/api/images/', ''));
   const object = await env.IMAGES.get(key);
 
@@ -131,7 +163,11 @@ async function handleImageRead(request: Request, env: Env, url: URL): Promise<Re
   headers.set('etag', object.httpEtag);
   headers.set('cache-control', 'public, max-age=31536000, immutable');
 
-  return new Response(object.body, { headers });
+  const response = new Response(object.body, { headers });
+
+  await cache.put(request, response.clone());
+
+  return response;
 }
 
 function getImageExtension(contentType: string, fileName: string): string {
@@ -142,4 +178,20 @@ function getImageExtension(contentType: string, fileName: string): string {
 
   const extension = fileName.split('.').pop()?.toLowerCase();
   return extension && /^[a-z0-9]+$/.test(extension) ? extension : 'bin';
+}
+
+function requireWriteToken(request: Request, env: Env): Response | undefined {
+  if (!env.WRITE_TOKEN) {
+    return jsonError('server_misconfigured', 'WRITE_TOKEN is not configured.', 500);
+  }
+
+  const authorization = request.headers.get('authorization') ?? '';
+  const bearerToken = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length).trim() : '';
+  const headerToken = request.headers.get('x-write-token')?.trim() ?? '';
+
+  if (bearerToken === env.WRITE_TOKEN || headerToken === env.WRITE_TOKEN) {
+    return undefined;
+  }
+
+  return jsonError('unauthorized', 'Write token is invalid.', 401);
 }

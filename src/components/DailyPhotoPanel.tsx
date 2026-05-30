@@ -6,12 +6,13 @@ import { createId } from '../utils/id';
 
 type DailyPhotoPanelProps = {
   calendarId: string;
+  writeToken: string;
   selectedDate: string;
   photos: DailyPhoto[];
   onPhotosChange: React.Dispatch<React.SetStateAction<DailyPhoto[]>>;
 };
 
-export function DailyPhotoPanel({ calendarId, selectedDate, photos, onPhotosChange }: DailyPhotoPanelProps) {
+export function DailyPhotoPanel({ calendarId, writeToken, selectedDate, photos, onPhotosChange }: DailyPhotoPanelProps) {
   const [memo, setMemo] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [imageBlob, setImageBlob] = useState<Blob | undefined>();
@@ -66,12 +67,18 @@ export function DailyPhotoPanel({ calendarId, selectedDate, photos, onPhotosChan
     let imageKey: string | undefined;
 
     if (shouldUseRemoteApi() && imageBlob) {
+      if (!writeToken.trim()) {
+        setError('設定で書き込みトークンを入力してください。');
+        return;
+      }
+
       try {
         const uploadedImage = await uploadDailyPhoto({
           calendarId,
           date: selectedDate,
           photoId,
           file: imageBlob,
+          writeToken,
         });
 
         savedImageUrl = uploadedImage.publicUrl;

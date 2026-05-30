@@ -31,10 +31,12 @@ export const loadCalendarSnapshot = async (calendarId: string): Promise<Calendar
 export const saveCalendarSnapshot = async (
   calendarId: string,
   snapshot: CalendarDataSnapshot,
+  writeToken: string,
 ): Promise<void> => {
   const response = await fetch(apiUrl(`/api/calendar/${encodeURIComponent(calendarId)}`), {
     method: 'PUT',
     headers: {
+      authorization: `Bearer ${writeToken}`,
       'content-type': 'application/json',
     },
     body: JSON.stringify({ snapshot }),
@@ -50,11 +52,13 @@ export const uploadDailyPhoto = async ({
   date,
   photoId,
   file,
+  writeToken,
 }: {
   calendarId: string;
   date: string;
   photoId: string;
   file: File | Blob;
+  writeToken: string;
 }): Promise<ImageUploadPayload> => {
   const formData = new FormData();
 
@@ -65,6 +69,9 @@ export const uploadDailyPhoto = async ({
 
   const response = await fetch(apiUrl('/api/images'), {
     method: 'POST',
+    headers: {
+      authorization: `Bearer ${writeToken}`,
+    },
     body: formData,
   });
 
