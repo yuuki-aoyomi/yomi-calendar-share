@@ -23,6 +23,7 @@ import { getMonthKey, toDateKey } from './utils/date';
 const todayKey = toDateKey(new Date());
 const calendarId = appConfig.calendarId;
 const remoteApiEnabled = shouldUseRemoteApi();
+const localDataEnabled = !remoteApiEnabled;
 
 function App() {
   const [activeMode, setActiveMode] = useState<CalendarMode>('schedule');
@@ -32,30 +33,37 @@ function App() {
   const [events, setEvents] = useLocalStorageState<CalendarEvent[]>(
     'yomi-calendar-share:events',
     [],
+    { enabled: localDataEnabled },
   );
   const [moneyRecords, setMoneyRecords] = useLocalStorageState<MoneyRecord[]>(
     'yomi-calendar-share:money-records',
     [],
+    { enabled: localDataEnabled },
   );
   const [loveLogs, setLoveLogs] = useLocalStorageState<LoveLog[]>(
     'yomi-calendar-share:love-logs',
     [],
+    { enabled: localDataEnabled },
   );
   const [tags, setTags] = useLocalStorageState<CalendarTag[]>(
     'yomi-calendar-share:tags',
     [],
+    { enabled: localDataEnabled },
   );
   const [partTimeJobs, setPartTimeJobs] = useLocalStorageState<PartTimeJob[]>(
     'yomi-calendar-share:part-time-jobs',
     [],
+    { enabled: localDataEnabled },
   );
   const [creditCards, setCreditCards] = useLocalStorageState<CreditCardSetting[]>(
     'yomi-calendar-share:credit-cards',
     [],
+    { enabled: localDataEnabled },
   );
   const [dailyPhotos, setDailyPhotos] = useLocalStorageState<DailyPhoto[]>(
     'yomi-calendar-share:daily-photos',
     [],
+    { enabled: localDataEnabled },
   );
   const [theme, setTheme] = useLocalStorageState<'light' | 'dark'>(
     'yomi-calendar-share:theme',
@@ -68,6 +76,7 @@ function App() {
 
   const currentMonthKey = useMemo(() => getMonthKey(currentMonth), [currentMonth]);
   const [isRemoteLoaded, setIsRemoteLoaded] = useState(!remoteApiEnabled);
+  const [remoteLoadError, setRemoteLoadError] = useState('');
   const lastSavedRemoteSnapshot = useRef('');
 
   useEffect(() => {
@@ -76,7 +85,13 @@ function App() {
 
   useEffect(() => {
     if (!remoteApiEnabled) return;
-    if (!writeToken.trim()) return;
+    setIsRemoteLoaded(false);
+    setRemoteLoadError('');
+
+    if (!writeToken.trim()) {
+      lastSavedRemoteSnapshot.current = '';
+      return;
+    }
 
     let isCancelled = false;
 
@@ -92,10 +107,15 @@ function App() {
         setCreditCards(snapshot.creditCards);
         setDailyPhotos(snapshot.dailyPhotos);
         lastSavedRemoteSnapshot.current = JSON.stringify(snapshot);
+        setRemoteLoadError('');
         setIsRemoteLoaded(true);
       })
       .catch(() => {
-        if (!isCancelled) setIsRemoteLoaded(true);
+        if (!isCancelled) {
+          lastSavedRemoteSnapshot.current = '';
+          setRemoteLoadError('トークンが違うか、データの読み込みに失敗しました。');
+          setIsRemoteLoaded(false);
+        }
       });
 
     return () => {
@@ -137,7 +157,7 @@ function App() {
     return () => window.clearTimeout(timeoutId);
   }, [creditCards, dailyPhotos, events, isRemoteLoaded, loveLogs, moneyRecords, partTimeJobs, tags, writeToken]);
 
-  if (remoteApiEnabled && !writeToken.trim()) {
+  if (remoteApiEnabled && (!writeToken.trim() || !isRemoteLoaded)) {
     return (
       <main className="app-shell">
         <section className="unlock-panel">
@@ -159,6 +179,8 @@ function App() {
             />
           </label>
           <p className="helper-text">トークンはこのブラウザ内にだけ保存されます。</p>
+          {writeToken.trim() && !remoteLoadError && <p className="helper-text">カレンダーを読み込んでいます...</p>}
+          {remoteLoadError && <p className="error-text">{remoteLoadError}</p>}
         </section>
       </main>
     );
