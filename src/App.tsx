@@ -216,6 +216,7 @@ function App() {
           selectedDate={selectedDate}
           events={events}
           moneyRecords={moneyRecords}
+          partTimeJobs={partTimeJobs}
           creditCards={creditCards}
           dailyPhotos={dailyPhotos}
           loveLogs={loveLogs}
@@ -233,6 +234,7 @@ function App() {
               selectedDate={selectedDate}
               events={events}
               moneyRecords={moneyRecords}
+              partTimeJobs={partTimeJobs}
               creditCards={creditCards}
               dailyPhotos={dailyPhotos}
               tags={tags}

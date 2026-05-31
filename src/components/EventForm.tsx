@@ -8,6 +8,7 @@ import type {
   RecurrenceFrequency,
 } from '../types/calendar';
 import { createId } from '../utils/id';
+import { estimateBreakMinutes } from '../utils/salary';
 
 type EventFormProps = {
   selectedDate: string;
@@ -43,6 +44,18 @@ const tagColors: Record<CalendarTagType, string> = {
 
 type RecurrenceInput = 'none' | RecurrenceFrequency;
 
+const getWorkMinutes = (startTime: string, endTime: string): number => {
+  if (!startTime || !endTime) return 0;
+
+  const [startHour, startMinute] = startTime.split(':').map(Number);
+  const [endHour, endMinute] = endTime.split(':').map(Number);
+  const start = startHour * 60 + startMinute;
+  const rawEnd = endHour * 60 + endMinute;
+  const end = rawEnd <= start ? rawEnd + 24 * 60 : rawEnd;
+
+  return Math.max(end - start, 0);
+};
+
 // 予定登録用の controlled form です。入力値は React state で管理します。
 export function EventForm({
   selectedDate,
@@ -56,6 +69,7 @@ export function EventForm({
   const [title, setTitle] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
+  const [breakMinutes, setBreakMinutes] = useState('');
   const [category, setCategory] = useState<EventCategory>('schedule');
   const [memo, setMemo] = useState('');
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
@@ -84,6 +98,7 @@ export function EventForm({
     setTitle('');
     setStartTime('');
     setEndTime('');
+    setBreakMinutes('');
     setCategory('schedule');
     setMemo('');
     setSelectedTagIds([]);
@@ -103,6 +118,9 @@ export function EventForm({
     setTitle(editingEvent.title);
     setStartTime(editingEvent.startTime ?? '');
     setEndTime(editingEvent.endTime ?? '');
+    setBreakMinutes(
+      editingEvent.breakMinutes === undefined ? '' : String(editingEvent.breakMinutes),
+    );
     setCategory(editingEvent.category);
     setMemo(editingEvent.memo ?? '');
     setSelectedTagIds(editingEvent.tagIds ?? []);
@@ -153,6 +171,9 @@ export function EventForm({
     setTitle(suggestion.title);
     setStartTime(suggestion.startTime ?? '');
     setEndTime(suggestion.endTime ?? '');
+    setBreakMinutes(
+      suggestion.breakMinutes === undefined ? '' : String(suggestion.breakMinutes),
+    );
     setCategory(suggestion.category);
     setMemo(suggestion.memo ?? '');
     setSelectedTagIds(suggestion.tagIds ?? []);
@@ -185,6 +206,7 @@ export function EventForm({
     const selectedTagNames = tags
       .filter((tag) => selectedTagIds.includes(tag.id))
       .map((tag) => tag.name);
+    const parsedBreakMinutes = Number(breakMinutes);
 
     onSaveEvent({
       id: editingEvent?.id ?? createId(),
@@ -192,6 +214,10 @@ export function EventForm({
       title: title.trim(),
       startTime: startTime || undefined,
       endTime: endTime || undefined,
+      breakMinutes:
+        breakMinutes.trim() && Number.isInteger(parsedBreakMinutes) && parsedBreakMinutes >= 0
+          ? parsedBreakMinutes
+          : undefined,
       category,
       memo: memo.trim() || undefined,
       tagIds: selectedTagIds,
@@ -213,6 +239,9 @@ export function EventForm({
     resetForm();
     if (isEditing) onCancelEdit();
   };
+
+  const hasWorkTag = tags.some((tag) => selectedTagIds.includes(tag.id) && tag.type === 'work');
+  const autoBreakMinutes = estimateBreakMinutes(getWorkMinutes(startTime, endTime));
 
   return (
     <form className="form-card" onSubmit={handleSubmit}>
@@ -265,6 +294,20 @@ export function EventForm({
           <input type="time" value={endTime} onChange={(event) => setEndTime(event.target.value)} />
         </label>
       </div>
+
+      {hasWorkTag && (
+        <label>
+          休憩時間（分）
+          <input
+            type="number"
+            min="0"
+            value={breakMinutes}
+            onChange={(event) => setBreakMinutes(event.target.value)}
+            placeholder={`自動: ${autoBreakMinutes}分`}
+          />
+          <span className="helper-text">未入力なら勤務時間から自動計算します。入力するとこの予定だけ上書きします。</span>
+        </label>
+      )}
 
       <label>
         カテゴリ

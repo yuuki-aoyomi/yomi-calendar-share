@@ -1,14 +1,16 @@
 import { useMemo } from 'react';
-import type { CalendarEvent, CreditCardSetting, DailyPhoto, LoveLog, MoneyRecord } from '../types/calendar';
+import type { CalendarEvent, CreditCardSetting, DailyPhoto, LoveLog, MoneyRecord, PartTimeJob } from '../types/calendar';
 import { buildCreditCardPaymentSchedules } from '../utils/creditCard';
 import { buildCalendarDays, getMonthKey } from '../utils/date';
 import { eventOccursOnDate } from '../utils/recurrence';
+import { buildSalaryPaymentSchedules } from '../utils/salary';
 
 type CalendarGridProps = {
   currentMonth: Date;
   selectedDate: string;
   events: CalendarEvent[];
   moneyRecords: MoneyRecord[];
+  partTimeJobs: PartTimeJob[];
   creditCards: CreditCardSetting[];
   dailyPhotos: DailyPhoto[];
   loveLogs: LoveLog[];
@@ -23,6 +25,7 @@ export function CalendarGrid({
   selectedDate,
   events,
   moneyRecords,
+  partTimeJobs,
   creditCards,
   dailyPhotos,
   loveLogs,
@@ -33,6 +36,10 @@ export function CalendarGrid({
   const paymentSchedules = useMemo(
     () => buildCreditCardPaymentSchedules(moneyRecords, creditCards),
     [moneyRecords, creditCards],
+  );
+  const salarySchedules = useMemo(
+    () => buildSalaryPaymentSchedules(events, partTimeJobs, currentMonthKey),
+    [events, partTimeJobs, currentMonthKey],
   );
 
   return (
@@ -47,11 +54,13 @@ export function CalendarGrid({
           const dayEvents = events.filter((event) => eventOccursOnDate(event, day.date));
           const dayMoneyRecords = moneyRecords.filter((record) => record.date === day.date);
           const dayPayments = paymentSchedules.filter((schedule) => schedule.paymentDate === day.date);
+          const daySalaries = salarySchedules.filter((schedule) => schedule.paymentDate === day.date);
           const dayLoveLogs = loveLogs.filter((log) => log.date === day.date);
           const paymentTotal = dayPayments.reduce((sum, schedule) => sum + schedule.amount, 0);
+          const salaryTotal = daySalaries.reduce((sum, schedule) => sum + schedule.amount, 0);
           const hasSchedule = dayEvents.some((event) => event.category !== 'diary');
           const hasDiary = dayEvents.some((event) => event.category === 'diary') || dailyPhotos.some((photo) => photo.date === day.date);
-          const hasMoney = dayMoneyRecords.length > 0 || dayPayments.length > 0;
+          const hasMoney = dayMoneyRecords.length > 0 || dayPayments.length > 0 || daySalaries.length > 0;
           const isSelected = day.date === selectedDate;
           const visibleItems = [
             ...dayEvents.map((event) => ({
@@ -63,6 +72,13 @@ export function CalendarGrid({
               id: record.id,
               className: 'money-preview',
               label: `${record.type === 'income' ? '+' : '-'}${record.amount.toLocaleString()}円`,
+            })),
+            ...daySalaries.map((schedule) => ({
+              id: schedule.id,
+              className: 'salary-preview',
+              label: schedule.amount > 0
+                ? `給料 +${schedule.amount.toLocaleString()}円`
+                : `給料 ${schedule.jobName}`,
             })),
             ...dayLoveLogs.map((log) => ({
               id: log.id,
@@ -103,7 +119,12 @@ export function CalendarGrid({
                 </span>
               )}
               {paymentTotal > 0 && (
-                <span className="payment-badge">¥ {paymentTotal.toLocaleString()}</span>
+                <span className="payment-badge">引落 ¥ {paymentTotal.toLocaleString()}</span>
+              )}
+              {daySalaries.length > 0 && (
+                <span className="salary-badge">
+                  給料 {salaryTotal > 0 ? `¥ ${salaryTotal.toLocaleString()}` : daySalaries.length}
+                </span>
               )}
             </button>
           );

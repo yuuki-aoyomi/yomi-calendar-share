@@ -1,10 +1,12 @@
 import type { CalendarEvent, CalendarTag } from '../types/calendar';
 import type { CreditCardPaymentSchedule } from '../utils/creditCard';
+import type { SalaryPaymentSchedule } from '../utils/salary';
 
 type EventListProps = {
   selectedDate: string;
   events: CalendarEvent[];
   paymentSchedules: CreditCardPaymentSchedule[];
+  salarySchedules: SalaryPaymentSchedule[];
   tags: CalendarTag[];
   onEditEvent: (id: string) => void;
   onDeleteEvent: (id: string) => void;
@@ -28,11 +30,12 @@ export function EventList({
   selectedDate,
   events,
   paymentSchedules,
+  salarySchedules,
   tags,
   onEditEvent,
   onDeleteEvent,
 }: EventListProps) {
-  if (events.length === 0 && paymentSchedules.length === 0) {
+  if (events.length === 0 && paymentSchedules.length === 0 && salarySchedules.length === 0) {
     return (
       <div className="empty-state">
         <h3>{selectedDate}</h3>
@@ -45,8 +48,26 @@ export function EventList({
     <div className="list-stack">
       <div className="section-title">
         <h3>{selectedDate} の予定</h3>
-        <span>{events.length + paymentSchedules.length}件</span>
+        <span>{events.length + paymentSchedules.length + salarySchedules.length}件</span>
       </div>
+      {salarySchedules.map((schedule) => (
+        <article className="item-card salary-event-card" key={schedule.id}>
+          <div className="item-main">
+            <span className="category-pill salary">給料日</span>
+            <h4>{schedule.jobName}</h4>
+            <p className="time-text">
+              {schedule.amount > 0 ? `${schedule.amount.toLocaleString()}円` : '金額未設定'}
+            </p>
+            <p>
+              {Math.floor(schedule.minutes / 60)}時間{schedule.minutes % 60}分 / {schedule.events.length}件
+              {schedule.lateNightMinutes > 0
+                ? ` / 深夜 ${Math.floor(schedule.lateNightMinutes / 60)}時間${schedule.lateNightMinutes % 60}分`
+                : ''}
+              {schedule.breakMinutes > 0 ? ` / 休憩 ${schedule.breakMinutes}分` : ''}
+            </p>
+          </div>
+        </article>
+      ))}
       {paymentSchedules.map((schedule) => (
         <article className="item-card payment-event-card" key={schedule.id}>
           <div className="item-main">

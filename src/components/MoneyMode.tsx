@@ -6,9 +6,9 @@ import type {
   PartTimeJob,
 } from '../types/calendar';
 import { buildCreditCardPaymentSchedules } from '../utils/creditCard';
-import { getMinutesBetween } from '../utils/date';
 import { createId } from '../utils/id';
 import { getEventOccurrencesForMonth } from '../utils/recurrence';
+import { buildSalaryPaymentSchedules, calculateWorkPay } from '../utils/salary';
 
 type MoneyModeProps = {
   selectedDate: string;
@@ -47,12 +47,22 @@ export function MoneyMode({
     .filter((record) => record.type === 'expense')
     .reduce((sum, record) => sum + record.amount, 0);
   const workSummaries = partTimeJobs.map((job) => {
-    const minutes = getEventOccurrencesForMonth(events, currentMonthKey)
+    const workPay = getEventOccurrencesForMonth(events, currentMonthKey)
       .filter((event) => (event.tagIds ?? []).includes(job.tagId))
-      .reduce((sum, event) => sum + getMinutesBetween(event.startTime, event.endTime), 0);
-    const estimatedPay = job.hourlyWage ? Math.round((minutes / 60) * job.hourlyWage) : undefined;
+      .reduce(
+        (sum, event) => {
+          const calculation = calculateWorkPay(event, job);
 
-    return { job, minutes, estimatedPay };
+          return {
+            amount: sum.amount + calculation.amount,
+            paidMinutes: sum.paidMinutes + calculation.paidMinutes,
+          };
+        },
+        { amount: 0, paidMinutes: 0 },
+      );
+    const estimatedPay = job.hourlyWage ? workPay.amount : undefined;
+
+    return { job, minutes: workPay.paidMinutes, estimatedPay };
   });
   const workIncomeTotal = workSummaries.reduce((sum, summary) => sum + (summary.estimatedPay ?? 0), 0);
   const incomeTotal = workIncomeTotal + otherIncomeTotal;
@@ -61,6 +71,10 @@ export function MoneyMode({
     () => buildCreditCardPaymentSchedules(records, creditCards),
     [records, creditCards],
   );
+  const salaryPaymentSchedules = useMemo(
+    () => buildSalaryPaymentSchedules(events, partTimeJobs, currentMonthKey),
+    [events, partTimeJobs, currentMonthKey],
+  );
   const monthPaymentSchedules = paymentSchedules.filter((schedule) =>
     schedule.paymentDate.startsWith(currentMonthKey),
   );
@@ -68,6 +82,7 @@ export function MoneyMode({
     (schedule) => schedule.paymentDate === selectedDate,
   );
   const monthPaymentTotal = monthPaymentSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
+  const monthSalaryPaymentTotal = salaryPaymentSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
 
   const selectedRecords = monthRecords.filter((record) => record.date === selectedDate);
 
@@ -110,6 +125,14 @@ export function MoneyMode({
       </div>
 
       <PiggyBankPanel balance={balance} incomeTotal={incomeTotal} expenseTotal={expenseTotal} />
+
+      <section className="payment-panel salary-panel">
+        <div className="section-title">
+          <h3>今月の給料日</h3>
+          <span>{monthSalaryPaymentTotal.toLocaleString()}円</span>
+        </div>
+        <SalaryScheduleList schedules={salaryPaymentSchedules} emptyText="今月の給料日はまだありません。" />
+      </section>
 
       <section className="payment-panel">
         <div className="section-title">
@@ -301,6 +324,39 @@ function PaymentScheduleList({
             <p>{schedule.records.map((record) => record.category).join(' / ')}</p>
           </div>
           <strong>{schedule.amount.toLocaleString()}円</strong>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function SalaryScheduleList({
+  schedules,
+  emptyText,
+}: {
+  schedules: ReturnType<typeof buildSalaryPaymentSchedules>;
+  emptyText: string;
+}) {
+  if (schedules.length === 0) {
+    return <p className="helper-text">{emptyText}</p>;
+  }
+
+  return (
+    <div className="payment-list">
+      {schedules.map((schedule) => (
+        <article key={schedule.id} className="payment-item salary-item">
+          <div>
+            <span>{schedule.paymentDate}</span>
+            <h4>{schedule.jobName}</h4>
+            <p>
+              {Math.floor(schedule.minutes / 60)}時間{schedule.minutes % 60}分 / {schedule.events.length}件
+              {schedule.lateNightMinutes > 0
+                ? ` / 深夜 ${Math.floor(schedule.lateNightMinutes / 60)}時間${schedule.lateNightMinutes % 60}分`
+                : ''}
+              {schedule.breakMinutes > 0 ? ` / 休憩 ${schedule.breakMinutes}分` : ''}
+            </p>
+          </div>
+          <strong>{schedule.amount > 0 ? `${schedule.amount.toLocaleString()}円` : '金額未設定'}</strong>
         </article>
       ))}
     </div>

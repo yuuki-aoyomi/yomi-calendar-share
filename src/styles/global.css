@@ -424,23 +424,37 @@ h1 {
   color: #9a4d00;
 }
 
+.salary-preview {
+  background: #e7fbf1;
+  color: #15845d;
+}
+
 .love-preview {
   background: #fff0f5;
   color: #c72d65;
 }
 
-.payment-badge {
+.payment-badge,
+.salary-badge {
   display: inline-block;
   max-width: 100%;
   overflow: hidden;
   border-radius: 999px;
   padding: 3px 6px;
-  background: #fff3d8;
-  color: #a35c00;
   font-size: 0.64rem;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.payment-badge {
+  background: #fff3d8;
+  color: #a35c00;
+}
+
+.salary-badge {
+  background: #e7fbf1;
+  color: #15845d;
 }
 
 .mode-tabs {
@@ -861,15 +875,19 @@ h1 {
 label {
   display: grid;
   gap: 7px;
+  min-width: 0;
   color: var(--muted-text);
   font-size: 0.9rem;
   font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 input,
 select,
 textarea {
   width: 100%;
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 11px 12px;
@@ -893,7 +911,7 @@ textarea:focus {
 .form-grid,
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -1006,6 +1024,11 @@ textarea:focus {
   color: #a35c00;
 }
 
+.category-pill.salary {
+  background: #e7fbf1;
+  color: #15845d;
+}
+
 .category-pill.recurrence {
   margin-left: 6px;
   background: #f0edff;
@@ -1017,8 +1040,17 @@ textarea:focus {
   background: #fffaf0;
 }
 
+.salary-event-card {
+  border-color: rgba(31, 191, 131, 0.24);
+  background: #f1fff8;
+}
+
 :root[data-theme="dark"] .payment-event-card {
   background: #332715;
+}
+
+:root[data-theme="dark"] .salary-event-card {
+  background: #123b2d;
 }
 
 .event-timeline {
@@ -1224,6 +1256,11 @@ textarea:focus {
   background: #fffaf0;
 }
 
+.salary-panel {
+  border-color: rgba(31, 191, 131, 0.24);
+  background: #f1fff8;
+}
+
 .piggy-bank-panel {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr);
@@ -1302,6 +1339,10 @@ textarea:focus {
   background: #2d2414;
 }
 
+:root[data-theme="dark"] .salary-panel {
+  background: #123b2d;
+}
+
 .payment-list {
   display: grid;
   gap: 10px;
@@ -1336,6 +1377,11 @@ textarea:focus {
 .payment-item strong {
   color: #9a4d00;
   white-space: nowrap;
+}
+
+.payment-item.salary-item span,
+.payment-item.salary-item strong {
+  color: #15845d;
 }
 
 .settings-section {

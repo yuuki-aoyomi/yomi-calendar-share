@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { AppBackupData, CalendarTag, CreditCardSetting, PartTimeJob } from '../types/calendar';
 import { createBackupData, downloadBackupFile, readBackupFile } from '../utils/backup';
 import { createId } from '../utils/id';
+import { formatPayrollRule } from '../utils/salary';
 
 type SettingsModeProps = {
   theme: 'light' | 'dark';
@@ -30,9 +31,20 @@ export function SettingsMode({
   const [error, setError] = useState('');
   const [jobName, setJobName] = useState('');
   const [hourlyWage, setHourlyWage] = useState('');
+  const [lateNightHourlyWage, setLateNightHourlyWage] = useState('');
+  const [jobClosingDay, setJobClosingDay] = useState('末');
+  const [jobPaymentDay, setJobPaymentDay] = useState('25');
   const [cardName, setCardName] = useState('');
   const [closingDay, setClosingDay] = useState('末');
   const [paymentDay, setPaymentDay] = useState('27');
+
+  const parseDayInput = (value: string): number | undefined => {
+    const normalized = value.trim();
+    if (normalized === '末') return 31;
+
+    const parsed = Number(normalized);
+    return Number.isInteger(parsed) && parsed >= 1 && parsed <= 31 ? parsed : undefined;
+  };
 
   const handleExport = () => {
     const backup = createBackupData(backupData);
@@ -61,7 +73,9 @@ export function SettingsMode({
   const handleAddPartTimeJob = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const name = jobName.trim();
-    if (!name) return;
+    const parsedClosingDay = parseDayInput(jobClosingDay);
+    const parsedPaymentDay = parseDayInput(jobPaymentDay);
+    if (!name || !parsedClosingDay || !parsedPaymentDay) return;
 
     const now = new Date().toISOString();
     const tag: CalendarTag = {
@@ -73,6 +87,7 @@ export function SettingsMode({
       updatedAt: now,
     };
     const wage = Number(hourlyWage);
+    const lateNightWage = Number(lateNightHourlyWage);
 
     onTagsChange((current) => [...current, tag]);
     onPartTimeJobsChange((current) => [
@@ -82,20 +97,27 @@ export function SettingsMode({
         name,
         tagId: tag.id,
         hourlyWage: Number.isFinite(wage) && wage > 0 ? wage : undefined,
+        lateNightHourlyWage:
+          Number.isFinite(lateNightWage) && lateNightWage > 0 ? lateNightWage : undefined,
+        closingDay: parsedClosingDay,
+        paymentDay: parsedPaymentDay,
         createdAt: now,
         updatedAt: now,
       },
     ]);
     setJobName('');
     setHourlyWage('');
+    setLateNightHourlyWage('');
+    setJobClosingDay('末');
+    setJobPaymentDay('25');
   };
 
   const handleAddCreditCard = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const name = cardName.trim();
-    const parsedClosingDay = closingDay === '末' ? 31 : Number(closingDay);
-    const parsedPaymentDay = Number(paymentDay);
-    if (!name || !Number.isFinite(parsedClosingDay) || !Number.isFinite(parsedPaymentDay)) return;
+    const parsedClosingDay = parseDayInput(closingDay);
+    const parsedPaymentDay = parseDayInput(paymentDay);
+    if (!name || !parsedClosingDay || !parsedPaymentDay) return;
 
     const now = new Date().toISOString();
     const tag: CalendarTag = {
@@ -153,6 +175,32 @@ export function SettingsMode({
                   placeholder="任意"
                 />
               </label>
+              <label>
+                深夜時給
+                <input
+                  type="number"
+                  min="1"
+                  value={lateNightHourlyWage}
+                  onChange={(event) => setLateNightHourlyWage(event.target.value)}
+                  placeholder="未入力なら25%増"
+                />
+              </label>
+              <label>
+                締め日
+                <input
+                  value={jobClosingDay}
+                  onChange={(event) => setJobClosingDay(event.target.value)}
+                  placeholder="末 / 15"
+                />
+              </label>
+              <label>
+                給料日
+                <input
+                  value={jobPaymentDay}
+                  onChange={(event) => setJobPaymentDay(event.target.value)}
+                  placeholder="25"
+                />
+              </label>
             </div>
             <button className="ghost-button" type="submit">
               バイト先を登録
@@ -161,7 +209,7 @@ export function SettingsMode({
               items={backupData.partTimeJobs.map((job) => ({
                 id: job.id,
                 title: job.name,
-                detail: job.hourlyWage ? `時給 ${job.hourlyWage.toLocaleString()}円` : '時給未設定',
+                detail: `${job.hourlyWage ? `時給 ${job.hourlyWage.toLocaleString()}円` : '時給未設定'} / ${formatPayrollRule(job)}`,
               }))}
               emptyText="バイト先はまだありません。"
               onDelete={(id) => onPartTimeJobsChange((current) => current.filter((job) => job.id !== id))}

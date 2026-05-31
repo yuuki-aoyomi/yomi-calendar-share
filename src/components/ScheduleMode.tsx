@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react';
 import { EventForm } from './EventForm';
 import { EventList } from './EventList';
 import { DailyPhotoPanel } from './DailyPhotoPanel';
-import type { CalendarEvent, CalendarTag, CreditCardSetting, DailyPhoto, MoneyRecord } from '../types/calendar';
+import type { CalendarEvent, CalendarTag, CreditCardSetting, DailyPhoto, MoneyRecord, PartTimeJob } from '../types/calendar';
 import { buildCreditCardPaymentSchedules } from '../utils/creditCard';
 import { getEventsForDate } from '../utils/recurrence';
+import { buildSalaryPaymentSchedules } from '../utils/salary';
 
 type ScheduleModeProps = {
   calendarId: string;
@@ -12,6 +13,7 @@ type ScheduleModeProps = {
   selectedDate: string;
   events: CalendarEvent[];
   moneyRecords: MoneyRecord[];
+  partTimeJobs: PartTimeJob[];
   creditCards: CreditCardSetting[];
   dailyPhotos: DailyPhoto[];
   tags: CalendarTag[];
@@ -26,6 +28,7 @@ export function ScheduleMode({
   selectedDate,
   events,
   moneyRecords,
+  partTimeJobs,
   creditCards,
   dailyPhotos,
   tags,
@@ -48,6 +51,13 @@ export function ScheduleMode({
         (schedule) => schedule.paymentDate === selectedDate,
       ),
     [moneyRecords, creditCards, selectedDate],
+  );
+  const selectedSalarySchedules = useMemo(
+    () =>
+      buildSalaryPaymentSchedules(events, partTimeJobs, selectedDate.slice(0, 7)).filter(
+        (schedule) => schedule.paymentDate === selectedDate,
+      ),
+    [events, partTimeJobs, selectedDate],
   );
 
   return (
@@ -73,6 +83,7 @@ export function ScheduleMode({
         selectedDate={selectedDate}
         events={selectedEvents}
         paymentSchedules={selectedPaymentSchedules}
+        salarySchedules={selectedSalarySchedules}
         tags={tags}
         onEditEvent={(id) => {
           setEditingEventId(id);

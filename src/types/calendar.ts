@@ -44,6 +44,7 @@ export type CalendarEvent = {
   title: string;
   startTime?: string;
   endTime?: string;
+  breakMinutes?: number;
   category: EventCategory;
   memo?: string;
   tagIds: string[];
@@ -71,6 +72,9 @@ export type PartTimeJob = {
   name: string;
   tagId: string;
   hourlyWage?: number;
+  lateNightHourlyWage?: number;
+  closingDay?: number;
+  paymentDay?: number;
   createdAt: string;
   updatedAt: string;
 };
