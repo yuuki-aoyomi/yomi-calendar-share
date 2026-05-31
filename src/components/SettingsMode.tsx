@@ -198,7 +198,7 @@ export function SettingsMode({
                 <input
                   value={jobPaymentDay}
                   onChange={(event) => setJobPaymentDay(event.target.value)}
-                  placeholder="25"
+                  placeholder="25 / 末"
                 />
               </label>
             </div>
