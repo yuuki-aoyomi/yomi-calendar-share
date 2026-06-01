@@ -17,6 +17,16 @@ type SettingsModeProps = {
   onCreditCardsChange: React.Dispatch<React.SetStateAction<CreditCardSetting[]>>;
 };
 
+type SettingsTab = 'general' | 'jobs' | 'cards' | 'tags' | 'data';
+
+const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
+  { id: 'general', label: '基本' },
+  { id: 'jobs', label: 'バイト' },
+  { id: 'cards', label: 'クレカ' },
+  { id: 'tags', label: 'タグ' },
+  { id: 'data', label: 'データ' },
+];
+
 export function SettingsMode({
   theme,
   writeToken,
@@ -29,6 +39,8 @@ export function SettingsMode({
   onPartTimeJobsChange,
   onCreditCardsChange,
 }: SettingsModeProps) {
+  const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>('general');
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [jobName, setJobName] = useState('');
@@ -191,14 +203,112 @@ export function SettingsMode({
     onCreditCardsChange((current) => current.filter((item) => item.id !== cardId));
   };
 
+  const handleUpdateTag = (tagId: string, updates: Partial<Pick<CalendarTag, 'name' | 'type' | 'color'>>) => {
+    const oldTag = backupData.tags.find((tag) => tag.id === tagId);
+    const nextName = updates.name?.trim();
+
+    onTagsChange((current) =>
+      current.map((tag) =>
+        tag.id === tagId
+          ? {
+              ...tag,
+              ...updates,
+              name: nextName || tag.name,
+              updatedAt: new Date().toISOString(),
+            }
+          : tag,
+      ),
+    );
+
+    if (oldTag && nextName && nextName !== oldTag.name) {
+      onEventsChange((current) =>
+        current.map((event) =>
+          (event.tagIds ?? []).includes(tagId)
+            ? {
+                ...event,
+                tags: (event.tags ?? []).map((name) => (name === oldTag.name ? nextName : name)),
+                updatedAt: new Date().toISOString(),
+              }
+            : event,
+        ),
+      );
+    }
+  };
+
+  const handleUpdatePartTimeJob = (jobId: string, updates: Partial<PartTimeJob>) => {
+    const job = backupData.partTimeJobs.find((item) => item.id === jobId);
+
+    onPartTimeJobsChange((current) =>
+      current.map((item) =>
+        item.id === jobId
+          ? {
+              ...item,
+              ...updates,
+              updatedAt: new Date().toISOString(),
+            }
+          : item,
+      ),
+    );
+
+    if (job && updates.name) {
+      handleUpdateTag(job.tagId, { name: updates.name });
+    }
+  };
+
+  const handleUpdateCreditCard = (cardId: string, updates: Partial<CreditCardSetting>) => {
+    const card = backupData.creditCards.find((item) => item.id === cardId);
+
+    onCreditCardsChange((current) =>
+      current.map((item) =>
+        item.id === cardId
+          ? {
+              ...item,
+              ...updates,
+              updatedAt: new Date().toISOString(),
+            }
+          : item,
+      ),
+    );
+
+    if (card && updates.name) {
+      handleUpdateTag(card.tagId, { name: updates.name });
+    }
+  };
+
+  const getTagLinkLabel = (tagId: string): string => {
+    const job = backupData.partTimeJobs.find((item) => item.tagId === tagId);
+    if (job) return `バイト: ${job.name}`;
+
+    const card = backupData.creditCards.find((item) => item.tagId === tagId);
+    if (card) return `クレカ: ${card.name}`;
+
+    return '紐づきなし';
+  };
+
   return (
     <div className="mode-content">
+      <div className="settings-tabs" role="tablist" aria-label="設定カテゴリ">
+        {settingsTabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeSettingsTab === tab.id}
+            className={activeSettingsTab === tab.id ? 'active' : ''}
+            onClick={() => setActiveSettingsTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeSettingsTab === 'jobs' && (
       <section className="settings-section">
         <div>
-          <h3>お金モード設定</h3>
-          <p>バイト先とクレカは、普段の記録画面ではなくここで管理します。</p>
+          <h3>バイト設定</h3>
+          <p>バイト先、時給、締め日、給料日を管理します。</p>
         </div>
-        <div className="settings-grid">
+        <div className="settings-grid single">
           <form className="form-card settings-card" onSubmit={handleAddPartTimeJob}>
             <div className="form-heading">
               <h3>バイト先</h3>
@@ -259,17 +369,25 @@ export function SettingsMode({
             <button className="ghost-button" type="submit">
               バイト先を登録
             </button>
-            <SettingList
-              items={backupData.partTimeJobs.map((job) => ({
-                id: job.id,
-                title: job.name,
-                detail: `${job.hourlyWage ? `時給 ${job.hourlyWage.toLocaleString()}円` : '時給未設定'} / ${formatPayrollRule(job)}`,
-              }))}
-              emptyText="バイト先はまだありません。"
-              onDelete={handleDeletePartTimeJob}
+            <PartTimeJobList
+              jobs={backupData.partTimeJobs}
+              tags={backupData.tags}
+              onUpdateJob={handleUpdatePartTimeJob}
+              onUpdateTag={handleUpdateTag}
+              onDeleteJob={handleDeletePartTimeJob}
             />
           </form>
+        </div>
+      </section>
+      )}
 
+      {activeSettingsTab === 'cards' && (
+      <section className="settings-section">
+        <div>
+          <h3>クレカ設定</h3>
+          <p>カードごとの締め日と支払日を管理します。</p>
+        </div>
+        <div className="settings-grid single">
           <form className="form-card settings-card" onSubmit={handleAddCreditCard}>
             <div className="form-heading">
               <h3>クレカ</h3>
@@ -302,19 +420,19 @@ export function SettingsMode({
             <button className="ghost-button" type="submit">
               クレカを登録
             </button>
-            <SettingList
-              items={backupData.creditCards.map((card) => ({
-                id: card.id,
-                title: card.name,
-                detail: `${card.closingDay === 31 ? '末' : card.closingDay}日締め / ${card.paymentDay}日払い`,
-              }))}
-              emptyText="クレカはまだありません。"
-              onDelete={handleDeleteCreditCard}
+            <CreditCardList
+              cards={backupData.creditCards}
+              tags={backupData.tags}
+              onUpdateCard={handleUpdateCreditCard}
+              onUpdateTag={handleUpdateTag}
+              onDeleteCard={handleDeleteCreditCard}
             />
           </form>
         </div>
       </section>
+      )}
 
+      {activeSettingsTab === 'tags' && (
       <section className="settings-section">
         <div>
           <h3>タグ管理</h3>
@@ -325,21 +443,67 @@ export function SettingsMode({
             <p className="helper-text">タグはまだありません。</p>
           ) : (
             backupData.tags.map((tag) => (
-              <div key={tag.id} className="tag-management-item">
-                <span className="tag-management-main">
-                  <i style={{ background: tag.color }} />
-                  <strong>{tag.name}</strong>
-                  <small>{tag.type}</small>
-                </span>
-                <button type="button" className="ghost-button danger" onClick={() => handleDeleteTag(tag.id)}>
-                  削除
-                </button>
+              <div key={tag.id} className="editable-setting-item">
+                <div className="editable-setting-summary">
+                  <span className="setting-list-main">
+                    <strong>
+                      <i className="inline-color-dot" style={{ background: tag.color }} />
+                      {tag.name}
+                    </strong>
+                    <span>{tag.type} / {getTagLinkLabel(tag.id)}</span>
+                  </span>
+                  <div className="setting-row-actions">
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={() => setEditingTagId(editingTagId === tag.id ? null : tag.id)}
+                    >
+                      {editingTagId === tag.id ? '閉じる' : '編集'}
+                    </button>
+                    <button type="button" className="ghost-button danger" onClick={() => handleDeleteTag(tag.id)}>
+                      削除
+                    </button>
+                  </div>
+                </div>
+                {editingTagId === tag.id && (
+                  <div className="editable-setting-grid">
+                    <label>
+                      タグ名
+                      <input value={tag.name} onChange={(event) => handleUpdateTag(tag.id, { name: event.target.value })} />
+                    </label>
+                    <label>
+                      種類
+                      <select
+                        value={tag.type}
+                        onChange={(event) => handleUpdateTag(tag.id, { type: event.target.value as CalendarTag['type'] })}
+                      >
+                        <option value="person">User / 人</option>
+                        <option value="work">バイト</option>
+                        <option value="credit-card">クレカ</option>
+                        <option value="custom">その他</option>
+                      </select>
+                    </label>
+                    <label>
+                      色
+                      <div className="color-input-row">
+                        <input type="color" value={tag.color} onChange={(event) => handleUpdateTag(tag.id, { color: event.target.value })} />
+                        <span className="color-preview-chip">
+                          <i style={{ background: tag.color }} />
+                          {tag.color}
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                )}
               </div>
             ))
           )}
         </div>
       </section>
+      )}
 
+      {activeSettingsTab === 'general' && (
+      <>
       <section className="settings-section">
         <div>
           <h3>書き込みトークン</h3>
@@ -378,7 +542,11 @@ export function SettingsMode({
           </button>
         </div>
       </section>
+      </>
+      )}
 
+      {activeSettingsTab === 'data' && (
+      <>
       <section className="settings-section">
         <div>
           <h3>画像保存ポリシー</h3>
@@ -421,6 +589,8 @@ export function SettingsMode({
           <SummaryItem label="日別写真" value={backupData.dailyPhotos.length} />
         </div>
       </section>
+      </>
+      )}
     </div>
   );
 }
@@ -443,32 +613,209 @@ function SummaryItem({ label, value }: { label: string; value: number }) {
   );
 }
 
-function SettingList({
-  items,
-  emptyText,
-  onDelete,
+function PartTimeJobList({
+  jobs,
+  tags,
+  onUpdateJob,
+  onUpdateTag,
+  onDeleteJob,
 }: {
-  items: Array<{ id: string; title: string; detail: string }>;
-  emptyText: string;
-  onDelete: (id: string) => void;
+  jobs: PartTimeJob[];
+  tags: CalendarTag[];
+  onUpdateJob: (jobId: string, updates: Partial<PartTimeJob>) => void;
+  onUpdateTag: (tagId: string, updates: Partial<Pick<CalendarTag, 'name' | 'type' | 'color'>>) => void;
+  onDeleteJob: (jobId: string) => void;
 }) {
-  if (items.length === 0) {
-    return <p className="helper-text">{emptyText}</p>;
-  }
+  const [editingJobId, setEditingJobId] = useState<string | null>(null);
+
+  if (jobs.length === 0) return <p className="helper-text">バイト先はまだありません。</p>;
 
   return (
-    <div className="setting-list">
-      {items.map((item) => (
-        <div key={item.id}>
-          <span className="setting-list-main">
-            <strong>{item.title}</strong>
-            <span>{item.detail}</span>
-          </span>
-          <button type="button" className="ghost-button danger" onClick={() => onDelete(item.id)}>
-            削除
-          </button>
-        </div>
-      ))}
+    <div className="editable-setting-list">
+      {jobs.map((job) => {
+        const tag = tags.find((item) => item.id === job.tagId);
+        const isEditing = editingJobId === job.id;
+
+        return (
+          <div key={job.id} className="editable-setting-item">
+            <div className="editable-setting-summary">
+              <span className="setting-list-main">
+                <strong>{job.name}</strong>
+                <span>タグ: {tag?.name ?? '未登録'} / {formatPayrollRule(job)}</span>
+              </span>
+              <div className="setting-row-actions">
+                <button type="button" className="ghost-button" onClick={() => setEditingJobId(isEditing ? null : job.id)}>
+                  {isEditing ? '閉じる' : '編集'}
+                </button>
+                <button type="button" className="ghost-button danger" onClick={() => onDeleteJob(job.id)}>
+                  削除
+                </button>
+              </div>
+            </div>
+            {isEditing && (
+              <div className="editable-setting-grid">
+                <label>
+                  名前
+                  <input value={job.name} onChange={(event) => onUpdateJob(job.id, { name: event.target.value })} />
+                </label>
+                <label>
+                  色
+                  <div className="color-input-row">
+                    <input
+                      type="color"
+                      value={tag?.color ?? '#1fbf83'}
+                      onChange={(event) => onUpdateTag(job.tagId, { color: event.target.value })}
+                    />
+                    <span className="color-preview-chip">
+                      <i style={{ background: tag?.color ?? '#1fbf83' }} />
+                      {tag?.color ?? '#1fbf83'}
+                    </span>
+                  </div>
+                </label>
+                <label>
+                  時給
+                  <input
+                    type="number"
+                    min="1"
+                    value={job.hourlyWage ?? ''}
+                    onChange={(event) => onUpdateJob(job.id, { hourlyWage: parseOptionalNumber(event.target.value) })}
+                  />
+                </label>
+                <label>
+                  深夜時給
+                  <input
+                    type="number"
+                    min="1"
+                    value={job.lateNightHourlyWage ?? ''}
+                    onChange={(event) => onUpdateJob(job.id, { lateNightHourlyWage: parseOptionalNumber(event.target.value) })}
+                  />
+                </label>
+                <label>
+                  締め日
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={job.closingDay ?? 31}
+                    onChange={(event) => onUpdateJob(job.id, { closingDay: parseRequiredDay(event.target.value) })}
+                  />
+                </label>
+                <label>
+                  給料日
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={job.paymentDay ?? 25}
+                    onChange={(event) => onUpdateJob(job.id, { paymentDay: parseRequiredDay(event.target.value) })}
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
+}
+
+function CreditCardList({
+  cards,
+  tags,
+  onUpdateCard,
+  onUpdateTag,
+  onDeleteCard,
+}: {
+  cards: CreditCardSetting[];
+  tags: CalendarTag[];
+  onUpdateCard: (cardId: string, updates: Partial<CreditCardSetting>) => void;
+  onUpdateTag: (tagId: string, updates: Partial<Pick<CalendarTag, 'name' | 'type' | 'color'>>) => void;
+  onDeleteCard: (cardId: string) => void;
+}) {
+  const [editingCardId, setEditingCardId] = useState<string | null>(null);
+
+  if (cards.length === 0) return <p className="helper-text">クレカはまだありません。</p>;
+
+  return (
+    <div className="editable-setting-list">
+      {cards.map((card) => {
+        const tag = tags.find((item) => item.id === card.tagId);
+        const isEditing = editingCardId === card.id;
+
+        return (
+          <div key={card.id} className="editable-setting-item">
+            <div className="editable-setting-summary">
+              <span className="setting-list-main">
+                <strong>{card.name}</strong>
+                <span>
+                  タグ: {tag?.name ?? '未登録'} / {card.closingDay === 31 ? '末' : card.closingDay}日締め / {card.paymentDay}日払い
+                </span>
+              </span>
+              <div className="setting-row-actions">
+                <button type="button" className="ghost-button" onClick={() => setEditingCardId(isEditing ? null : card.id)}>
+                  {isEditing ? '閉じる' : '編集'}
+                </button>
+                <button type="button" className="ghost-button danger" onClick={() => onDeleteCard(card.id)}>
+                  削除
+                </button>
+              </div>
+            </div>
+            {isEditing && (
+              <div className="editable-setting-grid">
+                <label>
+                  カード名
+                  <input value={card.name} onChange={(event) => onUpdateCard(card.id, { name: event.target.value })} />
+                </label>
+                <label>
+                  色
+                  <div className="color-input-row">
+                    <input
+                      type="color"
+                      value={tag?.color ?? '#f5b400'}
+                      onChange={(event) => onUpdateTag(card.tagId, { color: event.target.value })}
+                    />
+                    <span className="color-preview-chip">
+                      <i style={{ background: tag?.color ?? '#f5b400' }} />
+                      {tag?.color ?? '#f5b400'}
+                    </span>
+                  </div>
+                </label>
+                <label>
+                  締め日
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={card.closingDay}
+                    onChange={(event) => onUpdateCard(card.id, { closingDay: parseRequiredDay(event.target.value) })}
+                  />
+                </label>
+                <label>
+                  支払日
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={card.paymentDay}
+                    onChange={(event) => onUpdateCard(card.id, { paymentDay: parseRequiredDay(event.target.value) })}
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function parseOptionalNumber(value: string): number | undefined {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function parseRequiredDay(value: string): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) return 1;
+  return Math.min(Math.max(parsed, 1), 31);
 }

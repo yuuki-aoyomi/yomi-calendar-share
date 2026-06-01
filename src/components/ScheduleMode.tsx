@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { EventForm } from './EventForm';
 import { EventList } from './EventList';
 import { DailyPhotoPanel } from './DailyPhotoPanel';
@@ -20,6 +20,7 @@ type ScheduleModeProps = {
   onEventsChange: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
   onDailyPhotosChange: React.Dispatch<React.SetStateAction<DailyPhoto[]>>;
   onTagsChange: React.Dispatch<React.SetStateAction<CalendarTag[]>>;
+  editRequest: { eventId: string; requestedAt: number } | null;
 };
 
 export function ScheduleMode({
@@ -35,10 +36,18 @@ export function ScheduleMode({
   onEventsChange,
   onDailyPhotosChange,
   onTagsChange,
+  editRequest,
 }: ScheduleModeProps) {
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const editingEvent = events.find((event) => event.id === editingEventId);
+
+  useEffect(() => {
+    if (!editRequest) return;
+
+    setEditingEventId(editRequest.eventId);
+    setIsEditorOpen(true);
+  }, [editRequest]);
   const selectedEvents = useMemo(
     () =>
       getEventsForDate(events, selectedDate)

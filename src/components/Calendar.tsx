@@ -11,7 +11,6 @@ import type {
 import { toDateKey } from '../utils/date';
 import { CalendarGrid } from './CalendarGrid';
 import { CalendarHeader } from './CalendarHeader';
-import { CalendarInsights } from './CalendarInsights';
 
 type CalendarProps = {
   currentMonth: Date;
@@ -26,6 +25,7 @@ type CalendarProps = {
   tags: CalendarTag[];
   onMonthChange: (date: Date) => void;
   onSelectDate: (date: string) => void;
+  onEditEvent: (eventId: string) => void;
 };
 
 // カレンダー全体をまとめる親コンポーネントです。
@@ -37,40 +37,26 @@ export function Calendar(props: CalendarProps) {
   };
 
   return (
-    <div className="calendar-stack">
-      <section className="calendar-panel">
-        <CalendarHeader
-          currentMonth={props.currentMonth}
-          onMonthChange={props.onMonthChange}
-          onGoToday={handleGoToday}
-        />
-        <CalendarGrid
-          currentMonth={props.currentMonth}
-          activeMode={props.activeMode}
-          selectedDate={props.selectedDate}
-          events={props.events}
-          moneyRecords={props.moneyRecords}
-          partTimeJobs={props.partTimeJobs}
-          creditCards={props.creditCards}
-          dailyPhotos={props.dailyPhotos}
-          loveLogs={props.loveLogs}
-          tags={props.tags}
-          onSelectDate={props.onSelectDate}
-        />
-      </section>
-
-      <section className="calendar-panel insights-panel">
-        <CalendarInsights
-          currentMonth={props.currentMonth}
-          selectedDate={props.selectedDate}
-          events={props.events}
-          moneyRecords={props.moneyRecords}
-          partTimeJobs={props.partTimeJobs}
-          creditCards={props.creditCards}
-          dailyPhotos={props.dailyPhotos}
-          loveLogs={props.loveLogs}
-        />
-      </section>
-    </div>
+    <section className="calendar-panel calendar-main-panel">
+      <CalendarHeader
+        currentMonth={props.currentMonth}
+        onMonthChange={props.onMonthChange}
+        onGoToday={handleGoToday}
+      />
+      <CalendarGrid
+        currentMonth={props.currentMonth}
+        activeMode={props.activeMode}
+        selectedDate={props.selectedDate}
+        events={props.events}
+        moneyRecords={props.moneyRecords}
+        partTimeJobs={props.partTimeJobs}
+        creditCards={props.creditCards}
+        dailyPhotos={props.dailyPhotos}
+        loveLogs={props.loveLogs}
+        tags={props.tags}
+        onSelectDate={props.onSelectDate}
+        onEditEvent={props.onEditEvent}
+      />
+    </section>
   );
 }

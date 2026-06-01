@@ -164,14 +164,24 @@ h1 {
   align-items: start;
 }
 
+.calendar-main-panel {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.workspace-panel {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.insights-panel {
+  grid-column: 1;
+  grid-row: 2;
+}
+
 .calendar-panel,
 .workspace-panel {
   padding: 20px;
-}
-
-.calendar-stack {
-  display: grid;
-  gap: 24px;
 }
 
 .calendar-header {
@@ -470,6 +480,14 @@ h1 {
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.day-preview-item.editable {
+  cursor: pointer;
+}
+
+.day-preview-item.editable:hover {
+  filter: brightness(0.97);
 }
 
 .schedule-preview {
@@ -1432,6 +1450,35 @@ textarea:focus {
   gap: 14px;
 }
 
+.settings-grid.single {
+  grid-template-columns: 1fr;
+}
+
+.settings-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  border-radius: 14px;
+  padding: 5px;
+  background: var(--muted-bg);
+}
+
+.settings-tabs button {
+  border: 0;
+  border-radius: 11px;
+  padding: 10px 8px;
+  background: transparent;
+  color: var(--muted-text);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.settings-tabs button.active {
+  background: var(--card-bg);
+  color: var(--heading);
+  box-shadow: 0 6px 16px rgba(44, 57, 81, 0.1);
+}
+
 .settings-card {
   box-shadow: 0 12px 30px rgba(44, 57, 81, 0.06);
 }
@@ -1676,6 +1723,57 @@ textarea:focus {
   gap: 8px;
 }
 
+.editable-setting-list {
+  display: grid;
+  gap: 10px;
+}
+
+.editable-setting-item {
+  display: grid;
+  gap: 10px;
+  border-radius: 14px;
+  padding: 12px;
+  background: var(--soft-bg);
+}
+
+.editable-setting-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.editable-setting-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.editable-setting-grid .setting-link-label {
+  grid-column: 1 / -1;
+}
+
+.setting-link-label {
+  color: var(--muted-text);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.setting-row-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.inline-color-dot {
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  margin-right: 6px;
+  border-radius: 999px;
+  vertical-align: -0.05em;
+}
+
 .tag-management-list {
   display: grid;
   gap: 8px;
@@ -1901,6 +1999,13 @@ textarea:focus {
   .insight-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .calendar-main-panel,
+  .workspace-panel,
+  .insights-panel {
+    grid-column: auto;
+    grid-row: auto;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1993,12 +2098,14 @@ textarea:focus {
 
   .form-grid,
   .summary-grid,
-  .settings-grid,
-  .daily-photo-grid,
+    .settings-grid,
+    .settings-tabs,
+    .daily-photo-grid,
     .backup-summary-grid,
     .settings-note-grid,
     .help-grid,
     .insight-card-grid,
+    .editable-setting-grid,
     .tag-create-row,
     .timeline-create-row,
   .timeline-preview-item {
@@ -2012,7 +2119,9 @@ textarea:focus {
   }
 
   .form-actions,
-  .item-actions {
+  .item-actions,
+  .editable-setting-summary,
+  .setting-row-actions {
     flex-direction: column;
   }
 

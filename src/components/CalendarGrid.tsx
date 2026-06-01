@@ -26,6 +26,7 @@ type CalendarGridProps = {
   loveLogs: LoveLog[];
   tags: CalendarTag[];
   onSelectDate: (date: string) => void;
+  onEditEvent: (eventId: string) => void;
 };
 
 const weekLabels = ['日', '月', '火', '水', '木', '金', '土'];
@@ -35,6 +36,7 @@ type CalendarPreviewItem = {
   className: string;
   label: string;
   color?: string;
+  editable?: boolean;
 };
 
 const keepIncompleteTodoVisible = (
@@ -64,6 +66,7 @@ export function CalendarGrid({
   loveLogs,
   tags,
   onSelectDate,
+  onEditEvent,
 }: CalendarGridProps) {
   const days = useMemo(() => buildCalendarDays(currentMonth), [currentMonth]);
   const currentMonthKey = getMonthKey(currentMonth);
@@ -111,6 +114,7 @@ export function CalendarGrid({
                     ? 'diary-preview'
                     : 'schedule-preview',
               label: `${event.startTime ? `${event.startTime} ` : ''}${event.title}`,
+              editable: true,
               color: event.tagIds
                 .map((tagId) => tagsById.get(tagId)?.color)
                 .find((color): color is string => Boolean(color)),
@@ -173,8 +177,23 @@ export function CalendarGrid({
                   {visibleItems.map((item) => (
                     <span
                       key={item.id}
-                      className={`day-preview-item ${item.className}`}
+                      className={`day-preview-item ${item.className}${item.editable ? ' editable' : ''}`}
                       style={item.color ? { borderLeftColor: item.color } : undefined}
+                      role={item.editable ? 'button' : undefined}
+                      tabIndex={item.editable ? 0 : undefined}
+                      onClick={(event) => {
+                        if (!item.editable) return;
+                        event.stopPropagation();
+                        onSelectDate(day.date);
+                        onEditEvent(item.id);
+                      }}
+                      onKeyDown={(event) => {
+                        if (!item.editable || event.key !== 'Enter') return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onSelectDate(day.date);
+                        onEditEvent(item.id);
+                      }}
                     >
                       {item.label}
                     </span>
