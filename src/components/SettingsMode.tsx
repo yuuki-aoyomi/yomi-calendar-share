@@ -1,5 +1,12 @@
 import { useState } from 'react';
-import type { AppBackupData, CalendarEvent, CalendarTag, CreditCardSetting, PartTimeJob } from '../types/calendar';
+import type {
+  AppBackupData,
+  CalendarEvent,
+  CalendarTag,
+  CreditCardSetting,
+  PartTimeJob,
+  Subscription,
+} from '../types/calendar';
 import { createBackupData, downloadBackupFile, readBackupFile } from '../utils/backup';
 import { createId } from '../utils/id';
 import { formatPayrollRule } from '../utils/salary';
@@ -15,14 +22,16 @@ type SettingsModeProps = {
   onEventsChange: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
   onPartTimeJobsChange: React.Dispatch<React.SetStateAction<PartTimeJob[]>>;
   onCreditCardsChange: React.Dispatch<React.SetStateAction<CreditCardSetting[]>>;
+  onSubscriptionsChange: React.Dispatch<React.SetStateAction<Subscription[]>>;
 };
 
-type SettingsTab = 'general' | 'jobs' | 'cards' | 'tags' | 'data';
+type SettingsTab = 'general' | 'jobs' | 'cards' | 'subscriptions' | 'tags' | 'data';
 
 const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'general', label: '基本' },
   { id: 'jobs', label: 'バイト' },
   { id: 'cards', label: 'クレカ' },
+  { id: 'subscriptions', label: 'サブスク' },
   { id: 'tags', label: 'タグ' },
   { id: 'data', label: 'データ' },
 ];
@@ -38,6 +47,7 @@ export function SettingsMode({
   onEventsChange,
   onPartTimeJobsChange,
   onCreditCardsChange,
+  onSubscriptionsChange,
 }: SettingsModeProps) {
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>('general');
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
@@ -53,6 +63,12 @@ export function SettingsMode({
   const [cardTagColor, setCardTagColor] = useState('#f5b400');
   const [closingDay, setClosingDay] = useState('末');
   const [paymentDay, setPaymentDay] = useState('27');
+  const [subscriptionName, setSubscriptionName] = useState('');
+  const [subscriptionAmount, setSubscriptionAmount] = useState('');
+  const [subscriptionBillingDay, setSubscriptionBillingDay] = useState('1');
+  const [subscriptionCategory, setSubscriptionCategory] = useState('サブスク');
+  const [subscriptionCreditCardId, setSubscriptionCreditCardId] = useState('');
+  const [subscriptionMemo, setSubscriptionMemo] = useState('');
 
   const parseDayInput = (value: string): number | undefined => {
     const normalized = value.trim();
@@ -165,6 +181,39 @@ export function SettingsMode({
     setPaymentDay('27');
   };
 
+  const handleAddSubscription = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = subscriptionName.trim();
+    const amount = Number(subscriptionAmount);
+    const billingDay = parseDayInput(subscriptionBillingDay);
+    const category = subscriptionCategory.trim() || 'サブスク';
+    if (!name || !Number.isFinite(amount) || amount <= 0 || !billingDay) return;
+
+    const now = new Date().toISOString();
+
+    onSubscriptionsChange((current) => [
+      ...current,
+      {
+        id: createId(),
+        name,
+        amount,
+        billingDay,
+        creditCardId: subscriptionCreditCardId || undefined,
+        category,
+        memo: subscriptionMemo.trim() || undefined,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+    setSubscriptionName('');
+    setSubscriptionAmount('');
+    setSubscriptionBillingDay('1');
+    setSubscriptionCategory('サブスク');
+    setSubscriptionCreditCardId('');
+    setSubscriptionMemo('');
+  };
+
   const handleDeleteTag = (tagId: string) => {
     const tag = backupData.tags.find((item) => item.id === tagId);
 
@@ -273,6 +322,20 @@ export function SettingsMode({
     if (card && updates.name) {
       handleUpdateTag(card.tagId, { name: updates.name });
     }
+  };
+
+  const handleUpdateSubscription = (subscriptionId: string, updates: Partial<Subscription>) => {
+    onSubscriptionsChange((current) =>
+      current.map((subscription) =>
+        subscription.id === subscriptionId
+          ? {
+              ...subscription,
+              ...updates,
+              updatedAt: new Date().toISOString(),
+            }
+          : subscription,
+      ),
+    );
   };
 
   const getTagLinkLabel = (tagId: string): string => {
@@ -426,6 +489,87 @@ export function SettingsMode({
               onUpdateCard={handleUpdateCreditCard}
               onUpdateTag={handleUpdateTag}
               onDeleteCard={handleDeleteCreditCard}
+            />
+          </form>
+        </div>
+      </section>
+      )}
+
+      {activeSettingsTab === 'subscriptions' && (
+      <section className="settings-section">
+        <div>
+          <h3>サブスク設定</h3>
+          <p>毎月発生する固定費を登録します。支出、カレンダー、お金モードの警告に自動で反映されます。</p>
+        </div>
+        <div className="settings-grid single">
+          <form className="form-card settings-card" onSubmit={handleAddSubscription}>
+            <div className="form-heading">
+              <h3>サブスク</h3>
+              <span>毎月の固定費</span>
+            </div>
+            <div className="form-grid">
+              <label>
+                名前
+                <input
+                  value={subscriptionName}
+                  onChange={(event) => setSubscriptionName(event.target.value)}
+                  placeholder="Netflix / Spotify など"
+                />
+              </label>
+              <label>
+                月額
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  value={subscriptionAmount}
+                  onChange={(event) => setSubscriptionAmount(event.target.value)}
+                  placeholder="980"
+                />
+              </label>
+              <label>
+                請求日
+                <input
+                  value={subscriptionBillingDay}
+                  onChange={(event) => setSubscriptionBillingDay(event.target.value)}
+                  placeholder="1 / 末"
+                />
+              </label>
+              <label>
+                支払いカード
+                <select
+                  value={subscriptionCreditCardId}
+                  onChange={(event) => setSubscriptionCreditCardId(event.target.value)}
+                >
+                  <option value="">カード未選択</option>
+                  {backupData.creditCards.map((card) => (
+                    <option key={card.id} value={card.id}>
+                      {card.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                カテゴリ
+                <input
+                  value={subscriptionCategory}
+                  onChange={(event) => setSubscriptionCategory(event.target.value)}
+                  placeholder="動画 / 音楽 / アプリ"
+                />
+              </label>
+            </div>
+            <label>
+              メモ
+              <textarea value={subscriptionMemo} onChange={(event) => setSubscriptionMemo(event.target.value)} />
+            </label>
+            <button className="ghost-button" type="submit">
+              サブスクを登録
+            </button>
+            <SubscriptionList
+              subscriptions={backupData.subscriptions}
+              creditCards={backupData.creditCards}
+              onUpdateSubscription={handleUpdateSubscription}
+              onDeleteSubscription={(id) => onSubscriptionsChange((current) => current.filter((item) => item.id !== id))}
             />
           </form>
         </div>
@@ -586,6 +730,7 @@ export function SettingsMode({
           <SummaryItem label="タグ" value={backupData.tags.length} />
           <SummaryItem label="バイト先" value={backupData.partTimeJobs.length} />
           <SummaryItem label="クレカ" value={backupData.creditCards.length} />
+          <SummaryItem label="サブスク" value={backupData.subscriptions.length} />
           <SummaryItem label="日別写真" value={backupData.dailyPhotos.length} />
         </div>
       </section>
@@ -809,12 +954,134 @@ function CreditCardList({
   );
 }
 
+function SubscriptionList({
+  subscriptions,
+  creditCards,
+  onUpdateSubscription,
+  onDeleteSubscription,
+}: {
+  subscriptions: Subscription[];
+  creditCards: CreditCardSetting[];
+  onUpdateSubscription: (subscriptionId: string, updates: Partial<Subscription>) => void;
+  onDeleteSubscription: (subscriptionId: string) => void;
+}) {
+  const [editingSubscriptionId, setEditingSubscriptionId] = useState<string | null>(null);
+
+  if (subscriptions.length === 0) return <p className="helper-text">サブスクはまだ登録されていません。</p>;
+
+  return (
+    <div className="editable-setting-list">
+      {subscriptions.map((subscription) => {
+        const isEditing = editingSubscriptionId === subscription.id;
+        const creditCard = creditCards.find((card) => card.id === subscription.creditCardId);
+
+        return (
+          <div key={subscription.id} className="editable-setting-item">
+            <div className="editable-setting-summary">
+              <span className="setting-list-main">
+                <strong>{subscription.name}</strong>
+                <span>
+                  {subscription.category} / {subscription.amount.toLocaleString()}円 / 請求 {subscription.billingDay === 31 ? '末' : subscription.billingDay}日
+                  {creditCard ? ` / ${creditCard.name}` : ' / カード未選択'}
+                  {subscription.isActive ? '' : ' / 停止中'}
+                </span>
+              </span>
+              <div className="setting-row-actions">
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => setEditingSubscriptionId(isEditing ? null : subscription.id)}
+                >
+                  {isEditing ? '閉じる' : '編集'}
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button danger"
+                  onClick={() => onDeleteSubscription(subscription.id)}
+                >
+                  削除
+                </button>
+              </div>
+            </div>
+            {isEditing && (
+              <div className="editable-setting-grid">
+                <label>
+                  名前
+                  <input
+                    value={subscription.name}
+                    onChange={(event) => onUpdateSubscription(subscription.id, { name: event.target.value })}
+                  />
+                </label>
+                <label>
+                  月額
+                  <input
+                    type="number"
+                    min="1"
+                    value={subscription.amount}
+                    onChange={(event) => onUpdateSubscription(subscription.id, { amount: parseOptionalNumber(event.target.value) ?? 0 })}
+                  />
+                </label>
+                <label>
+                  請求日
+                  <input
+                    value={subscription.billingDay === 31 ? '末' : subscription.billingDay}
+                    onChange={(event) => onUpdateSubscription(subscription.id, { billingDay: parseRequiredDay(event.target.value) })}
+                  />
+                </label>
+                <label>
+                  支払いカード
+                  <select
+                    value={subscription.creditCardId ?? ''}
+                    onChange={(event) =>
+                      onUpdateSubscription(subscription.id, { creditCardId: event.target.value || undefined })
+                    }
+                  >
+                    <option value="">カード未選択</option>
+                    {creditCards.map((card) => (
+                      <option key={card.id} value={card.id}>
+                        {card.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  カテゴリ
+                  <input
+                    value={subscription.category}
+                    onChange={(event) => onUpdateSubscription(subscription.id, { category: event.target.value })}
+                  />
+                </label>
+                <label>
+                  メモ
+                  <textarea
+                    value={subscription.memo ?? ''}
+                    onChange={(event) => onUpdateSubscription(subscription.id, { memo: event.target.value || undefined })}
+                  />
+                </label>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={subscription.isActive}
+                    onChange={(event) => onUpdateSubscription(subscription.id, { isActive: event.target.checked })}
+                  />
+                  有効
+                </label>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function parseOptionalNumber(value: string): number | undefined {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function parseRequiredDay(value: string): number {
+  if (value.trim() === '末') return 31;
   const parsed = Number(value);
   if (!Number.isInteger(parsed)) return 1;
   return Math.min(Math.max(parsed, 1), 31);

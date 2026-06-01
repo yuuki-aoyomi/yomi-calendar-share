@@ -1,8 +1,17 @@
-import type { CalendarEvent, CreditCardSetting, DailyPhoto, LoveLog, MoneyRecord, PartTimeJob } from '../types/calendar';
+import type {
+  CalendarEvent,
+  CreditCardSetting,
+  DailyPhoto,
+  LoveLog,
+  MoneyRecord,
+  PartTimeJob,
+  Subscription,
+} from '../types/calendar';
 import { buildCreditCardPaymentSchedules } from '../utils/creditCard';
 import { getMonthKey, moveMonth } from '../utils/date';
 import { getEventOccurrencesForMonth, getEventsForDate } from '../utils/recurrence';
 import { buildSalaryPaymentSchedules } from '../utils/salary';
+import { buildSubscriptionPaymentSchedules } from '../utils/subscription';
 
 type CalendarInsightsProps = {
   currentMonth: Date;
@@ -11,6 +20,7 @@ type CalendarInsightsProps = {
   moneyRecords: MoneyRecord[];
   partTimeJobs: PartTimeJob[];
   creditCards: CreditCardSetting[];
+  subscriptions: Subscription[];
   dailyPhotos: DailyPhoto[];
   loveLogs: LoveLog[];
 };
@@ -35,6 +45,7 @@ export function CalendarInsights({
   moneyRecords,
   partTimeJobs,
   creditCards,
+  subscriptions,
   dailyPhotos,
   loveLogs,
 }: CalendarInsightsProps) {
@@ -46,6 +57,7 @@ export function CalendarInsights({
     moneyRecords,
     partTimeJobs,
     creditCards,
+    subscriptions,
     dailyPhotos,
     loveLogs,
   });
@@ -55,6 +67,7 @@ export function CalendarInsights({
     moneyRecords,
     partTimeJobs,
     creditCards,
+    subscriptions,
     dailyPhotos,
     loveLogs,
   });
@@ -64,6 +77,7 @@ export function CalendarInsights({
     moneyRecords,
     partTimeJobs,
     creditCards,
+    subscriptions,
     dailyPhotos,
     loveLogs,
   });
@@ -143,6 +157,7 @@ function buildDayStats({
   moneyRecords,
   partTimeJobs,
   creditCards,
+  subscriptions,
   dailyPhotos,
   loveLogs,
 }: {
@@ -151,6 +166,7 @@ function buildDayStats({
   moneyRecords: MoneyRecord[];
   partTimeJobs: PartTimeJob[];
   creditCards: CreditCardSetting[];
+  subscriptions: Subscription[];
   dailyPhotos: DailyPhoto[];
   loveLogs: LoveLog[];
 }): SummaryStats {
@@ -162,6 +178,9 @@ function buildDayStats({
   const salarySchedules = buildSalaryPaymentSchedules(events, partTimeJobs, dateKey.slice(0, 7)).filter(
     (schedule) => schedule.paymentDate === dateKey,
   );
+  const subscriptionSchedules = buildSubscriptionPaymentSchedules(subscriptions, dateKey.slice(0, 7), creditCards).filter(
+    (schedule) => schedule.paymentDate === dateKey,
+  );
   const todoEvents = dayEvents.filter((event) => event.category === 'todo');
   const income =
     dayRecords.filter((record) => record.type === 'income').reduce((sum, record) => sum + record.amount, 0) +
@@ -170,7 +189,8 @@ function buildDayStats({
     dayRecords
       .filter((record) => record.type === 'expense' && (!record.isCreditCard || !record.creditCardId))
       .reduce((sum, record) => sum + record.amount, 0) +
-    paymentSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
+    paymentSchedules.reduce((sum, schedule) => sum + schedule.amount, 0) +
+    subscriptionSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
 
   return createStats({
     todoEvents,
@@ -190,6 +210,7 @@ function buildMonthStats({
   moneyRecords,
   partTimeJobs,
   creditCards,
+  subscriptions,
   dailyPhotos,
   loveLogs,
 }: {
@@ -198,6 +219,7 @@ function buildMonthStats({
   moneyRecords: MoneyRecord[];
   partTimeJobs: PartTimeJob[];
   creditCards: CreditCardSetting[];
+  subscriptions: Subscription[];
   dailyPhotos: DailyPhoto[];
   loveLogs: LoveLog[];
 }): SummaryStats {
@@ -207,6 +229,7 @@ function buildMonthStats({
     schedule.paymentDate.startsWith(monthKey),
   );
   const salarySchedules = buildSalaryPaymentSchedules(events, partTimeJobs, monthKey);
+  const subscriptionSchedules = buildSubscriptionPaymentSchedules(subscriptions, monthKey, creditCards);
   const todoEvents = monthEvents.filter((event) => event.category === 'todo');
   const income =
     monthRecords.filter((record) => record.type === 'income').reduce((sum, record) => sum + record.amount, 0) +
@@ -215,7 +238,8 @@ function buildMonthStats({
     monthRecords
       .filter((record) => record.type === 'expense' && (!record.isCreditCard || !record.creditCardId))
       .reduce((sum, record) => sum + record.amount, 0) +
-    paymentSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
+    paymentSchedules.reduce((sum, schedule) => sum + schedule.amount, 0) +
+    subscriptionSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
 
   return createStats({
     todoEvents,

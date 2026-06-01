@@ -102,6 +102,19 @@ export type MoneyRecord = {
   updatedAt: string;
 };
 
+export type Subscription = {
+  id: string;
+  name: string;
+  amount: number;
+  billingDay: number;
+  creditCardId?: string;
+  category: string;
+  memo?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type LoveLog = {
   id: string;
   date: string;
@@ -123,6 +136,7 @@ export type AppBackupData = {
     tags: CalendarTag[];
     partTimeJobs: PartTimeJob[];
     creditCards: CreditCardSetting[];
+    subscriptions: Subscription[];
     dailyPhotos: DailyPhoto[];
   };
 };

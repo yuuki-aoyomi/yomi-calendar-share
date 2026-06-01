@@ -4,10 +4,12 @@ import type {
   CreditCardSetting,
   MoneyRecord,
   PartTimeJob,
+  Subscription,
 } from '../types/calendar';
 import { buildCreditCardPaymentSchedules } from '../utils/creditCard';
 import { createId } from '../utils/id';
 import { buildSalaryPaymentSchedules } from '../utils/salary';
+import { buildSubscriptionPaymentSchedules } from '../utils/subscription';
 
 type MoneyModeProps = {
   selectedDate: string;
@@ -15,6 +17,7 @@ type MoneyModeProps = {
   events: CalendarEvent[];
   partTimeJobs: PartTimeJob[];
   creditCards: CreditCardSetting[];
+  subscriptions: Subscription[];
   records: MoneyRecord[];
   onRecordsChange: React.Dispatch<React.SetStateAction<MoneyRecord[]>>;
 };
@@ -41,6 +44,7 @@ export function MoneyMode({
   events,
   partTimeJobs,
   creditCards,
+  subscriptions,
   records,
   onRecordsChange,
 }: MoneyModeProps) {
@@ -67,6 +71,10 @@ export function MoneyMode({
     () => buildSalaryPaymentSchedules(events, partTimeJobs, currentMonthKey),
     [events, partTimeJobs, currentMonthKey],
   );
+  const subscriptionPaymentSchedules = useMemo(
+    () => buildSubscriptionPaymentSchedules(subscriptions, currentMonthKey, creditCards),
+    [subscriptions, currentMonthKey, creditCards],
+  );
   const monthPaymentSchedules = paymentSchedules.filter((schedule) =>
     schedule.paymentDate.startsWith(currentMonthKey),
   );
@@ -75,10 +83,11 @@ export function MoneyMode({
   );
   const monthPaymentTotal = monthPaymentSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
   const monthSalaryPaymentTotal = salaryPaymentSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
+  const monthSubscriptionTotal = subscriptionPaymentSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
   const directExpenseTotal = monthRecords
     .filter((record) => record.type === 'expense' && (!record.isCreditCard || !record.creditCardId))
     .reduce((sum, record) => sum + record.amount, 0);
-  const expenseTotal = directExpenseTotal + monthPaymentTotal;
+  const expenseTotal = directExpenseTotal + monthPaymentTotal + monthSubscriptionTotal;
   const workIncomeTotal = monthSalaryPaymentTotal;
   const incomeTotal = workIncomeTotal + otherIncomeTotal;
   const balance = incomeTotal - expenseTotal;
@@ -94,12 +103,14 @@ export function MoneyMode({
     monthRecords,
     monthPaymentSchedules,
     salaryPaymentSchedules,
+    subscriptionPaymentSchedules,
   );
   const creditCardFailureWarning = buildCreditCardFailureWarning(
     currentMonthKey,
     monthRecords,
     monthPaymentSchedules,
     salaryPaymentSchedules,
+    subscriptionPaymentSchedules,
     lowBalanceThreshold,
   );
   const futureCreditCardWarning = buildFutureCreditCardWarning({
@@ -107,6 +118,8 @@ export function MoneyMode({
     records,
     events,
     partTimeJobs,
+    creditCards,
+    subscriptions,
     paymentSchedules,
     threshold: lowBalanceThreshold,
   });
@@ -243,6 +256,14 @@ export function MoneyMode({
         <PaymentScheduleList schedules={monthPaymentSchedules} emptyText="今月の引き落とし予定はありません。" />
       </section>
 
+      <section className="payment-panel subscription-panel">
+        <div className="section-title">
+          <h3>{monthLabel}のサブスク</h3>
+          <span>{monthSubscriptionTotal.toLocaleString()}円</span>
+        </div>
+        <SubscriptionScheduleList schedules={subscriptionPaymentSchedules} emptyText="今月のサブスク支払いはありません。" />
+      </section>
+
       {selectedPaymentSchedules.length > 0 && (
         <section className="payment-panel">
           <div className="section-title">
@@ -376,6 +397,7 @@ function buildMonthlyCashFlowWarning(
   monthRecords: MoneyRecord[],
   monthPaymentSchedules: ReturnType<typeof buildCreditCardPaymentSchedules>,
   salaryPaymentSchedules: ReturnType<typeof buildSalaryPaymentSchedules>,
+  subscriptionPaymentSchedules: ReturnType<typeof buildSubscriptionPaymentSchedules>,
 ): { date: string; amount: number } | undefined {
   const cashFlows = [
     ...monthRecords
@@ -391,6 +413,10 @@ function buildMonthlyCashFlowWarning(
     ...salaryPaymentSchedules.map((schedule) => ({
       date: schedule.paymentDate,
       amount: schedule.amount,
+    })),
+    ...subscriptionPaymentSchedules.map((schedule) => ({
+      date: schedule.paymentDate,
+      amount: -schedule.amount,
     })),
   ]
     .filter((flow) => flow.date.startsWith(currentMonthKey))
@@ -416,6 +442,7 @@ function buildCreditCardFailureWarning(
   monthRecords: MoneyRecord[],
   monthPaymentSchedules: ReturnType<typeof buildCreditCardPaymentSchedules>,
   salaryPaymentSchedules: ReturnType<typeof buildSalaryPaymentSchedules>,
+  subscriptionPaymentSchedules: ReturnType<typeof buildSubscriptionPaymentSchedules>,
   threshold: number,
 ): { date: string; balance: number } | undefined {
   const cashFlows = [
@@ -429,6 +456,11 @@ function buildCreditCardFailureWarning(
       date: schedule.paymentDate,
       amount: schedule.amount,
       kind: 'salary' as const,
+    })),
+    ...subscriptionPaymentSchedules.map((schedule) => ({
+      date: schedule.paymentDate,
+      amount: -schedule.amount,
+      kind: 'subscription' as const,
     })),
     ...monthPaymentSchedules.map((schedule) => ({
       date: schedule.paymentDate,
@@ -463,6 +495,8 @@ function buildFutureCreditCardWarning({
   records,
   events,
   partTimeJobs,
+  creditCards,
+  subscriptions,
   paymentSchedules,
   threshold,
 }: {
@@ -470,12 +504,17 @@ function buildFutureCreditCardWarning({
   records: MoneyRecord[];
   events: CalendarEvent[];
   partTimeJobs: PartTimeJob[];
+  creditCards: CreditCardSetting[];
+  subscriptions: Subscription[];
   paymentSchedules: ReturnType<typeof buildCreditCardPaymentSchedules>;
   threshold: number;
 }): { paymentDate: string; balance: number } | undefined {
   const futureMonthKeys = [moveMonthKey(currentMonthKey, 1), moveMonthKey(currentMonthKey, 2)];
   const futureSalarySchedules = futureMonthKeys.flatMap((monthKey) =>
     buildSalaryPaymentSchedules(events, partTimeJobs, monthKey),
+  );
+  const futureSubscriptionSchedules = futureMonthKeys.flatMap((monthKey) =>
+    buildSubscriptionPaymentSchedules(subscriptions, monthKey, creditCards),
   );
   const currentMonthCreditCardRecordIds = new Set(
     records
@@ -502,11 +541,15 @@ function buildFutureCreditCardWarning({
     const monthSalarySchedules = futureSalarySchedules.filter((schedule) =>
       schedule.paymentDate.startsWith(futureMonthKey),
     );
+    const monthSubscriptionSchedules = futureSubscriptionSchedules.filter((schedule) =>
+      schedule.paymentDate.startsWith(futureMonthKey),
+    );
     const warning = buildCreditCardFailureWarning(
       futureMonthKey,
       monthRecords,
       monthPaymentSchedules,
       monthSalarySchedules,
+      monthSubscriptionSchedules,
       threshold,
     );
 
@@ -615,6 +658,34 @@ function SalaryScheduleList({
             </p>
           </div>
           <strong>{schedule.amount > 0 ? `${schedule.amount.toLocaleString()}円` : '金額未設定'}</strong>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function SubscriptionScheduleList({
+  schedules,
+  emptyText,
+}: {
+  schedules: ReturnType<typeof buildSubscriptionPaymentSchedules>;
+  emptyText: string;
+}) {
+  if (schedules.length === 0) {
+    return <p className="helper-text">{emptyText}</p>;
+  }
+
+  return (
+    <div className="payment-list">
+      {schedules.map((schedule) => (
+        <article key={schedule.id} className="payment-item subscription-item">
+          <div>
+            <span>{schedule.paymentDate}</span>
+            <h4>{schedule.name}</h4>
+            <p>{schedule.memo ? `${schedule.category} / ${schedule.memo}` : schedule.category}</p>
+            {schedule.creditCardName && <p>カード: {schedule.creditCardName} / 請求日 {schedule.billingDate}</p>}
+          </div>
+          <strong>{schedule.amount.toLocaleString()}円</strong>
         </article>
       ))}
     </div>

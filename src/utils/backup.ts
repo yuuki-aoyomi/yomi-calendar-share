@@ -7,6 +7,7 @@ import type {
   LoveLog,
   MoneyRecord,
   PartTimeJob,
+  Subscription,
 } from '../types/calendar';
 
 export const createBackupData = (data: AppBackupData['data']): AppBackupData => ({
@@ -48,6 +49,7 @@ export const readBackupFile = async (file: File): Promise<AppBackupData> => {
       tags: normalizeArray<CalendarTag>(parsed.data.tags),
       partTimeJobs: normalizeArray<PartTimeJob>(parsed.data.partTimeJobs),
       creditCards: normalizeArray<CreditCardSetting>(parsed.data.creditCards),
+      subscriptions: normalizeArray<Subscription>(parsed.data.subscriptions),
       dailyPhotos: normalizeArray<DailyPhoto>(parsed.data.dailyPhotos),
     },
   };

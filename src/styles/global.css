@@ -1521,6 +1521,11 @@ textarea:focus {
   background: #f1fff8;
 }
 
+.subscription-panel {
+  border-color: rgba(124, 110, 230, 0.24);
+  background: #f8f6ff;
+}
+
 .piggy-bank-panel {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr);
@@ -1603,6 +1608,10 @@ textarea:focus {
   background: #123b2d;
 }
 
+:root[data-theme="dark"] .subscription-panel {
+  background: #241f3d;
+}
+
 .payment-list {
   display: grid;
   gap: 10px;
@@ -1642,6 +1651,11 @@ textarea:focus {
 .payment-item.salary-item span,
 .payment-item.salary-item strong {
   color: #15845d;
+}
+
+.payment-item.subscription-item span,
+.payment-item.subscription-item strong {
+  color: #6552c7;
 }
 
 .settings-section {

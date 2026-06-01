@@ -19,6 +19,7 @@ import type {
   LoveLog,
   MoneyRecord,
   PartTimeJob,
+  Subscription,
 } from './types/calendar';
 import { getMonthKey, toDateKey } from './utils/date';
 
@@ -61,6 +62,11 @@ function App() {
   );
   const [creditCards, setCreditCards] = useLocalStorageState<CreditCardSetting[]>(
     'yomi-calendar-share:credit-cards',
+    [],
+    { enabled: localDataEnabled },
+  );
+  const [subscriptions, setSubscriptions] = useLocalStorageState<Subscription[]>(
+    'yomi-calendar-share:subscriptions',
     [],
     { enabled: localDataEnabled },
   );
@@ -109,6 +115,7 @@ function App() {
         setTags(snapshot.tags);
         setPartTimeJobs(snapshot.partTimeJobs);
         setCreditCards(snapshot.creditCards);
+        setSubscriptions(snapshot.subscriptions ?? []);
         setDailyPhotos(snapshot.dailyPhotos);
         lastSavedRemoteSnapshot.current = JSON.stringify(snapshot);
         setRemoteLoadError('');
@@ -132,6 +139,7 @@ function App() {
     setLoveLogs,
     setMoneyRecords,
     setPartTimeJobs,
+    setSubscriptions,
     setTags,
     writeToken,
   ]);
@@ -148,6 +156,7 @@ function App() {
         tags,
         partTimeJobs,
         creditCards,
+        subscriptions,
         dailyPhotos,
       };
       const snapshotJson = JSON.stringify(snapshot);
@@ -159,7 +168,7 @@ function App() {
     }, 2000);
 
     return () => window.clearTimeout(timeoutId);
-  }, [creditCards, dailyPhotos, events, isRemoteLoaded, loveLogs, moneyRecords, partTimeJobs, tags, writeToken]);
+  }, [creditCards, dailyPhotos, events, isRemoteLoaded, loveLogs, moneyRecords, partTimeJobs, subscriptions, tags, writeToken]);
 
   if (remoteApiEnabled && (!writeToken.trim() || !isRemoteLoaded)) {
     return (
@@ -233,6 +242,7 @@ function App() {
           moneyRecords={moneyRecords}
           partTimeJobs={partTimeJobs}
           creditCards={creditCards}
+          subscriptions={subscriptions}
           dailyPhotos={dailyPhotos}
           loveLogs={loveLogs}
           tags={tags}
@@ -272,6 +282,7 @@ function App() {
               events={events}
               partTimeJobs={partTimeJobs}
               creditCards={creditCards}
+              subscriptions={subscriptions}
               records={moneyRecords}
               onRecordsChange={setMoneyRecords}
             />
@@ -315,6 +326,7 @@ function App() {
                     tags,
                     partTimeJobs,
                     creditCards,
+                    subscriptions,
                     dailyPhotos,
                   }}
                   onImportBackup={(data) => {
@@ -324,6 +336,7 @@ function App() {
                     setTags(data.tags);
                     setPartTimeJobs(data.partTimeJobs);
                     setCreditCards(data.creditCards);
+                    setSubscriptions(data.subscriptions ?? []);
                     setDailyPhotos(data.dailyPhotos);
                   }}
                   onThemeChange={setTheme}
@@ -332,6 +345,7 @@ function App() {
                   onEventsChange={setEvents}
                   onPartTimeJobsChange={setPartTimeJobs}
                   onCreditCardsChange={setCreditCards}
+                  onSubscriptionsChange={setSubscriptions}
                 />
               </section>
             </div>
@@ -347,6 +361,7 @@ function App() {
             moneyRecords={moneyRecords}
             partTimeJobs={partTimeJobs}
             creditCards={creditCards}
+            subscriptions={subscriptions}
             dailyPhotos={dailyPhotos}
             loveLogs={loveLogs}
           />

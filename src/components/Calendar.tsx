@@ -7,6 +7,7 @@ import type {
   LoveLog,
   MoneyRecord,
   PartTimeJob,
+  Subscription,
 } from '../types/calendar';
 import { toDateKey } from '../utils/date';
 import { CalendarGrid } from './CalendarGrid';
@@ -20,6 +21,7 @@ type CalendarProps = {
   moneyRecords: MoneyRecord[];
   partTimeJobs: PartTimeJob[];
   creditCards: CreditCardSetting[];
+  subscriptions: Subscription[];
   dailyPhotos: DailyPhoto[];
   loveLogs: LoveLog[];
   tags: CalendarTag[];
@@ -51,6 +53,7 @@ export function Calendar(props: CalendarProps) {
         moneyRecords={props.moneyRecords}
         partTimeJobs={props.partTimeJobs}
         creditCards={props.creditCards}
+        subscriptions={props.subscriptions}
         dailyPhotos={props.dailyPhotos}
         loveLogs={props.loveLogs}
         tags={props.tags}

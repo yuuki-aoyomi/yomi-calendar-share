@@ -7,6 +7,7 @@ export const defaultCalendarSnapshot: CalendarDataSnapshot = {
   tags: [],
   partTimeJobs: [],
   creditCards: [],
+  subscriptions: [],
   dailyPhotos: [],
 };
 

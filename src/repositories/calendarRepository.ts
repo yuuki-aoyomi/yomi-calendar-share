@@ -6,6 +6,7 @@ import type {
   LoveLog,
   MoneyRecord,
   PartTimeJob,
+  Subscription,
 } from '../types/calendar';
 
 export type CalendarDataSnapshot = {
@@ -15,6 +16,7 @@ export type CalendarDataSnapshot = {
   tags: CalendarTag[];
   partTimeJobs: PartTimeJob[];
   creditCards: CreditCardSetting[];
+  subscriptions: Subscription[];
   dailyPhotos: DailyPhoto[];
 };
 
