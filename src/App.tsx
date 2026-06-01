@@ -7,6 +7,7 @@ import { ScheduleMode } from './components/ScheduleMode';
 import { MoneyMode } from './components/MoneyMode';
 import { LoveMode } from './components/LoveMode';
 import { SettingsMode } from './components/SettingsMode';
+import { HelpModal } from './components/HelpModal';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
 import type {
   CalendarEvent,
@@ -28,6 +29,7 @@ const localDataEnabled = !remoteApiEnabled;
 function App() {
   const [activeMode, setActiveMode] = useState<CalendarMode>('schedule');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [events, setEvents] = useLocalStorageState<CalendarEvent[]>(
@@ -195,14 +197,24 @@ function App() {
           <p className="hero-copy">予定・お金・ラブログを同じ日付軸で整理する共有カレンダー</p>
         </div>
         <div className="hero-side">
-          <button
-            type="button"
-            className="settings-icon-button"
-            aria-label="設定を開く"
-            onClick={() => setIsSettingsOpen(true)}
-          >
-            ⚙
-          </button>
+          <div className="hero-actions">
+            <button
+              type="button"
+              className="settings-icon-button"
+              aria-label="設定を開く"
+              onClick={() => setIsSettingsOpen(true)}
+            >
+              ⚙
+            </button>
+            <button
+              type="button"
+              className="settings-icon-button help-icon-button"
+              aria-label="ヘルプを開く"
+              onClick={() => setIsHelpOpen(true)}
+            >
+              ?
+            </button>
+          </div>
           <div className="ai-card">
             <span>AIアドバイス</span>
             <p>今週も無理しすぎず、自分のペースで頑張ってください。</p>
@@ -213,6 +225,7 @@ function App() {
       <div className="layout">
         <Calendar
           currentMonth={currentMonth}
+          activeMode={activeMode}
           selectedDate={selectedDate}
           events={events}
           moneyRecords={moneyRecords}
@@ -220,6 +233,7 @@ function App() {
           creditCards={creditCards}
           dailyPhotos={dailyPhotos}
           loveLogs={loveLogs}
+          tags={tags}
           onMonthChange={setCurrentMonth}
           onSelectDate={setSelectedDate}
         />
@@ -308,12 +322,14 @@ function App() {
                   onThemeChange={setTheme}
                   onWriteTokenChange={setWriteToken}
                   onTagsChange={setTags}
+                  onEventsChange={setEvents}
                   onPartTimeJobsChange={setPartTimeJobs}
                   onCreditCardsChange={setCreditCards}
                 />
               </section>
             </div>
           )}
+          {isHelpOpen && <HelpModal onClose={() => setIsHelpOpen(false)} />}
 
         </section>
       </div>

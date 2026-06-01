@@ -42,7 +42,11 @@ export function ScheduleMode({
   const selectedEvents = useMemo(
     () =>
       getEventsForDate(events, selectedDate)
-        .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || '')),
+        .sort((a, b) => {
+          if (!a.startTime && b.startTime) return -1;
+          if (a.startTime && !b.startTime) return 1;
+          return (a.startTime || '').localeCompare(b.startTime || '');
+        }),
     [events, selectedDate],
   );
   const selectedPaymentSchedules = useMemo(
@@ -92,6 +96,19 @@ export function ScheduleMode({
         onDeleteEvent={(id) => {
           setEditingEventId((current) => (current === id ? null : current));
           onEventsChange((current) => current.filter((event) => event.id !== id));
+        }}
+        onToggleTodo={(id, done) => {
+          onEventsChange((current) =>
+            current.map((event) =>
+              event.id === id
+                ? {
+                    ...event,
+                    done,
+                    updatedAt: new Date().toISOString(),
+                  }
+                : event,
+            ),
+          );
         }}
       />
 

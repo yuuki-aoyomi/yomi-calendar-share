@@ -169,6 +169,11 @@ h1 {
   padding: 20px;
 }
 
+.calendar-stack {
+  display: grid;
+  gap: 24px;
+}
+
 .calendar-header {
   display: flex;
   align-items: center;
@@ -263,6 +268,59 @@ h1 {
 
 .calendar-grid {
   gap: 10px;
+}
+
+.calendar-insights {
+  display: grid;
+  gap: 14px;
+}
+
+.insights-panel {
+  padding: 18px;
+}
+
+.insight-section {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  background: var(--soft-bg);
+}
+
+.insight-card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.insight-card {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  padding: 12px;
+  background: var(--card-bg);
+}
+
+.insight-card span {
+  color: var(--muted-text);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.insight-card strong {
+  min-width: 0;
+  color: var(--heading);
+  font-size: 1.15rem;
+  overflow-wrap: anywhere;
+}
+
+.insight-card p {
+  margin: 0;
+  color: var(--subtle-text);
+  font-size: 0.78rem;
+  line-height: 1.5;
 }
 
 .day-cell {
@@ -384,6 +442,10 @@ h1 {
   background: #f5b400;
 }
 
+.todo-dot {
+  background: #d97706;
+}
+
 .love-dot {
   background: #ff5c93;
 }
@@ -400,6 +462,7 @@ h1 {
 
 .day-preview-item {
   overflow: hidden;
+  border-left: 4px solid transparent;
   border-radius: 7px;
   padding: 3px 5px;
   font-size: 0.68rem;
@@ -427,6 +490,11 @@ h1 {
 .salary-preview {
   background: #e7fbf1;
   color: #15845d;
+}
+
+.todo-preview {
+  background: #fff7e6;
+  color: #9a5a00;
 }
 
 .love-preview {
@@ -610,6 +678,11 @@ h1 {
   justify-items: end;
 }
 
+.hero-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .settings-icon-button {
   width: 44px;
   height: 44px;
@@ -623,6 +696,10 @@ h1 {
 
 .settings-icon-button:hover {
   transform: translateY(-1px);
+}
+
+.help-icon-button {
+  font-weight: 900;
 }
 
 .settings-modal-panel {
@@ -785,8 +862,49 @@ h1 {
 
 .tag-create-row {
   display: grid;
-  grid-template-columns: 130px minmax(0, 1fr) auto;
+  grid-template-columns: 130px 52px minmax(0, 1fr) auto;
   gap: 8px;
+}
+
+.tag-create-row input[type="color"] {
+  height: 44px;
+  padding: 4px;
+}
+
+.color-input-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.color-input-row input[type="color"] {
+  height: 44px;
+  padding: 4px;
+}
+
+.color-preview-chip {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 11px;
+  background: var(--card-bg);
+  color: var(--muted-text);
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.color-preview-chip i {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.32);
 }
 
 .timeline-editor {
@@ -953,10 +1071,49 @@ textarea:focus {
   gap: 12px;
 }
 
+.event-category-section {
+  display: grid;
+  gap: 10px;
+}
+
+.event-category-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  padding: 4px 2px 8px;
+}
+
+.event-category-heading h4 {
+  margin: 0;
+  color: var(--heading);
+}
+
+.event-category-heading span {
+  color: var(--subtle-text);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.todo-progress {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #ffe8a3;
+}
+
+.todo-progress div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f5b400 0%, #1fbf83 100%);
+}
+
 .item-card {
   display: flex;
   justify-content: space-between;
   gap: 14px;
+  border-left: 5px solid transparent;
   padding: 16px;
 }
 
@@ -978,6 +1135,11 @@ textarea:focus {
 .item-card h4 {
   margin: 8px 0 6px;
   color: var(--heading);
+}
+
+.item-card.todo-done h4 {
+  color: var(--muted-text);
+  text-decoration: line-through;
 }
 
 .item-card p {
@@ -1033,6 +1195,33 @@ textarea:focus {
   margin-left: 6px;
   background: #f0edff;
   color: #6552c7;
+}
+
+.event-card-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.todo-checkbox-label {
+  display: inline-flex;
+  width: fit-content;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: #fff7e6;
+  color: #9a5a00;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.todo-checkbox-label input {
+  width: auto;
+  margin: 0;
+  accent-color: #f5b400;
 }
 
 .payment-event-card {
@@ -1256,6 +1445,30 @@ textarea:focus {
   background: #fffaf0;
 }
 
+.money-warning-panel {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(180, 35, 66, 0.24);
+  border-radius: 18px;
+  padding: 16px;
+  background: #fff0f3;
+  box-shadow: var(--shadow);
+}
+
+.money-warning-panel strong {
+  color: #b42342;
+}
+
+.money-warning-panel p {
+  margin: 0;
+  color: #8f2339;
+  line-height: 1.7;
+}
+
+:root[data-theme="dark"] .money-warning-panel {
+  background: #3a1c2b;
+}
+
 .salary-panel {
   border-color: rgba(31, 191, 131, 0.24);
   background: #f1fff8;
@@ -1463,6 +1676,46 @@ textarea:focus {
   gap: 8px;
 }
 
+.tag-management-list {
+  display: grid;
+  gap: 8px;
+}
+
+.tag-management-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--soft-bg);
+}
+
+.tag-management-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.tag-management-main i {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+}
+
+.tag-management-main strong {
+  min-width: 0;
+  color: var(--heading);
+  overflow-wrap: anywhere;
+}
+
+.tag-management-main small {
+  color: var(--muted-text);
+  font-weight: 800;
+}
+
 .setting-list div {
   display: flex;
   align-items: center;
@@ -1568,6 +1821,31 @@ textarea:focus {
   gap: 10px;
 }
 
+.help-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.help-item {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  background: var(--soft-bg);
+}
+
+.help-item h4 {
+  margin: 0 0 8px;
+  color: var(--heading);
+}
+
+.help-item p {
+  margin: 0;
+  color: var(--muted-text);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
 .settings-note-item {
   border-radius: 14px;
   padding: 14px;
@@ -1619,6 +1897,10 @@ textarea:focus {
   .summary-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .insight-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
@@ -1627,13 +1909,41 @@ textarea:focus {
     padding: 18px 0;
   }
 
+  .app-hero {
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+
+  h1 {
+    font-size: 2.2rem;
+  }
+
   .calendar-panel,
   .workspace-panel {
-    padding: 14px;
+    padding: 12px;
   }
 
   .mode-tabs {
-    grid-template-columns: 1fr;
+    position: sticky;
+    z-index: 10;
+    top: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 6px 0;
+    background: var(--page-bg);
+  }
+
+  .mode-tab {
+    border-radius: 13px;
+    padding: 10px 8px;
+    text-align: center;
+  }
+
+  .mode-tab strong {
+    justify-content: center;
+  }
+
+  .mode-tab > span {
+    display: none;
   }
 
   .mode-toolbar {
@@ -1651,19 +1961,46 @@ textarea:focus {
   }
 
   .day-cell {
-    min-height: 86px;
+    min-height: 72px;
     border-radius: 12px;
-    padding: 7px;
+    padding: 6px;
+  }
+
+  .calendar-grid {
+    gap: 5px;
+  }
+
+  .week-row {
+    font-size: 0.72rem;
+  }
+
+  .day-cell.today::after {
+    content: "";
+  }
+
+  .day-cell.today .day-dots {
+    padding-right: 0;
+  }
+
+  .day-cell.today .day-number {
+    width: 24px;
+    height: 24px;
+  }
+
+  .day-preview-list {
+    min-height: 0;
   }
 
   .form-grid,
   .summary-grid,
   .settings-grid,
   .daily-photo-grid,
-  .backup-summary-grid,
-  .settings-note-grid,
-  .tag-create-row,
-  .timeline-create-row,
+    .backup-summary-grid,
+    .settings-note-grid,
+    .help-grid,
+    .insight-card-grid,
+    .tag-create-row,
+    .timeline-create-row,
   .timeline-preview-item {
     grid-template-columns: 1fr;
   }
@@ -1684,7 +2021,14 @@ textarea:focus {
   }
 
   .day-preview-item {
-    font-size: 0.62rem;
+    padding: 2px 4px;
+    font-size: 0.58rem;
+  }
+
+  .payment-badge,
+  .salary-badge {
+    padding: 2px 4px;
+    font-size: 0.56rem;
   }
 
   .piggy-bank-panel,

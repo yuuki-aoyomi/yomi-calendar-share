@@ -7,8 +7,7 @@ import type {
 } from '../types/calendar';
 import { buildCreditCardPaymentSchedules } from '../utils/creditCard';
 import { createId } from '../utils/id';
-import { getEventOccurrencesForMonth } from '../utils/recurrence';
-import { buildSalaryPaymentSchedules, calculateWorkPay } from '../utils/salary';
+import { buildSalaryPaymentSchedules } from '../utils/salary';
 
 type MoneyModeProps = {
   selectedDate: string;
@@ -19,6 +18,22 @@ type MoneyModeProps = {
   records: MoneyRecord[];
   onRecordsChange: React.Dispatch<React.SetStateAction<MoneyRecord[]>>;
 };
+
+const formatMonthLabel = (monthKey: string): string => {
+  const [, month] = monthKey.split('-').map(Number);
+  return `${month}月`;
+};
+
+const moveMonthKey = (monthKey: string, diff: number): string => {
+  const [year, month] = monthKey.split('-').map(Number);
+  const movedDate = new Date(year, month - 1 + diff, 1);
+  const movedYear = movedDate.getFullYear();
+  const movedMonth = String(movedDate.getMonth() + 1).padStart(2, '0');
+
+  return `${movedYear}-${movedMonth}`;
+};
+
+const lowBalanceThreshold = 10_000;
 
 export function MoneyMode({
   selectedDate,
@@ -33,8 +48,9 @@ export function MoneyMode({
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
   const [memo, setMemo] = useState('');
-  const [isCreditCard, setIsCreditCard] = useState(false);
+  const [isCreditCard, setIsCreditCard] = useState(true);
   const [creditCardId, setCreditCardId] = useState('');
+  const monthLabel = formatMonthLabel(currentMonthKey);
 
   const monthRecords = useMemo(
     () => records.filter((record) => record.date.startsWith(currentMonthKey)),
@@ -43,30 +59,6 @@ export function MoneyMode({
   const otherIncomeTotal = monthRecords
     .filter((record) => record.type === 'income')
     .reduce((sum, record) => sum + record.amount, 0);
-  const expenseTotal = monthRecords
-    .filter((record) => record.type === 'expense')
-    .reduce((sum, record) => sum + record.amount, 0);
-  const workSummaries = partTimeJobs.map((job) => {
-    const workPay = getEventOccurrencesForMonth(events, currentMonthKey)
-      .filter((event) => (event.tagIds ?? []).includes(job.tagId))
-      .reduce(
-        (sum, event) => {
-          const calculation = calculateWorkPay(event, job);
-
-          return {
-            amount: sum.amount + calculation.amount,
-            paidMinutes: sum.paidMinutes + calculation.paidMinutes,
-          };
-        },
-        { amount: 0, paidMinutes: 0 },
-      );
-    const estimatedPay = job.hourlyWage ? workPay.amount : undefined;
-
-    return { job, minutes: workPay.paidMinutes, estimatedPay };
-  });
-  const workIncomeTotal = workSummaries.reduce((sum, summary) => sum + (summary.estimatedPay ?? 0), 0);
-  const incomeTotal = workIncomeTotal + otherIncomeTotal;
-  const balance = incomeTotal - expenseTotal;
   const paymentSchedules = useMemo(
     () => buildCreditCardPaymentSchedules(records, creditCards),
     [records, creditCards],
@@ -83,6 +75,41 @@ export function MoneyMode({
   );
   const monthPaymentTotal = monthPaymentSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
   const monthSalaryPaymentTotal = salaryPaymentSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
+  const directExpenseTotal = monthRecords
+    .filter((record) => record.type === 'expense' && (!record.isCreditCard || !record.creditCardId))
+    .reduce((sum, record) => sum + record.amount, 0);
+  const expenseTotal = directExpenseTotal + monthPaymentTotal;
+  const workIncomeTotal = monthSalaryPaymentTotal;
+  const incomeTotal = workIncomeTotal + otherIncomeTotal;
+  const balance = incomeTotal - expenseTotal;
+  const workSummaries = partTimeJobs.map((job) => {
+    const jobSchedules = salaryPaymentSchedules.filter((schedule) => schedule.jobId === job.id);
+    const amount = jobSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
+    const minutes = jobSchedules.reduce((sum, schedule) => sum + schedule.minutes, 0);
+
+    return { job, minutes, estimatedPay: amount, paymentCount: jobSchedules.length };
+  });
+  const cashFlowWarning = buildMonthlyCashFlowWarning(
+    currentMonthKey,
+    monthRecords,
+    monthPaymentSchedules,
+    salaryPaymentSchedules,
+  );
+  const creditCardFailureWarning = buildCreditCardFailureWarning(
+    currentMonthKey,
+    monthRecords,
+    monthPaymentSchedules,
+    salaryPaymentSchedules,
+    lowBalanceThreshold,
+  );
+  const futureCreditCardWarning = buildFutureCreditCardWarning({
+    currentMonthKey,
+    records,
+    events,
+    partTimeJobs,
+    paymentSchedules,
+    threshold: lowBalanceThreshold,
+  });
 
   const selectedRecords = monthRecords.filter((record) => record.date === selectedDate);
 
@@ -111,7 +138,7 @@ export function MoneyMode({
     setAmount('');
     setCategory('');
     setMemo('');
-    setIsCreditCard(false);
+    setIsCreditCard(type === 'expense');
     setCreditCardId('');
   };
 
@@ -124,19 +151,93 @@ export function MoneyMode({
         <SummaryCard label="差額" value={balance} tone={balance >= 0 ? 'income' : 'expense'} />
       </div>
 
-      <PiggyBankPanel balance={balance} incomeTotal={incomeTotal} expenseTotal={expenseTotal} />
+      <PiggyBankPanel
+        monthLabel={monthLabel}
+        balance={balance}
+        incomeTotal={incomeTotal}
+        expenseTotal={expenseTotal}
+      />
+
+      {balance < 0 && (
+        <section className="money-warning-panel" role="alert">
+          <strong>今月の収支がマイナスになりそうです。</strong>
+          <p>
+            支出が収入を {Math.abs(balance).toLocaleString()}円 上回っています。クレカ引き落とし予定も確認しておきましょう。
+          </p>
+        </section>
+      )}
+
+      {cashFlowWarning && (
+        <section className="money-warning-panel" role="alert">
+          <strong>{cashFlowWarning.date} 時点で一時的にマイナスになりそうです。</strong>
+          <p>
+            給料日とクレカ引き落としの順番を反映すると、月中の差額が
+            {cashFlowWarning.amount.toLocaleString()}円 まで下がります。
+          </p>
+        </section>
+      )}
+
+      {creditCardFailureWarning && (
+        <section className="money-warning-panel" role="alert">
+          <strong>{creditCardFailureWarning.date} のクレカ引き落としに注意してください。</strong>
+          <p>
+            引き落とし後の残りが {creditCardFailureWarning.balance.toLocaleString()}円 になり、
+            目安の {lowBalanceThreshold.toLocaleString()}円 を下回りそうです。
+          </p>
+        </section>
+      )}
+
+      {futureCreditCardWarning && (
+        <section className="money-warning-panel" role="alert">
+          <strong>
+            {futureCreditCardWarning.paymentDate} のクレカ引き落としで残りが少なくなりそうです。
+          </strong>
+          <p>
+            {monthLabel}に使ったクレカ分が後の月に引き落とされ、残りが
+            {futureCreditCardWarning.balance.toLocaleString()}円 まで下がる見込みです。
+            これ以上のクレカ利用は注意しましょう。
+          </p>
+        </section>
+      )}
 
       <section className="payment-panel salary-panel">
         <div className="section-title">
-          <h3>今月の給料日</h3>
+          <h3>{monthLabel}の給料日</h3>
           <span>{monthSalaryPaymentTotal.toLocaleString()}円</span>
         </div>
         <SalaryScheduleList schedules={salaryPaymentSchedules} emptyText="今月の給料日はまだありません。" />
       </section>
 
+      <section className="payment-panel salary-panel">
+        <div className="section-title">
+          <h3>バイトごとの入金予定</h3>
+          <span>{workSummaries.length}件</span>
+        </div>
+        {workSummaries.length === 0 ? (
+          <p className="helper-text">バイト先はまだ登録されていません。</p>
+        ) : (
+          <div className="payment-list">
+            {workSummaries.map((summary) => (
+              <article key={summary.job.id} className="payment-item salary-item">
+                <div>
+                  <span>{summary.job.name}</span>
+                  <h4>
+                    {Math.floor(summary.minutes / 60)}時間{summary.minutes % 60}分
+                  </h4>
+                  <p>{summary.job.hourlyWage ? `時給 ${summary.job.hourlyWage.toLocaleString()}円` : '時給未設定'}</p>
+                </div>
+                <strong>
+                  {summary.paymentCount === 0 ? '今月入金なし' : `${summary.estimatedPay.toLocaleString()}円`}
+                </strong>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
       <section className="payment-panel">
         <div className="section-title">
-          <h3>今月のクレカ引き落とし</h3>
+          <h3>{monthLabel}のクレカ引き落とし</h3>
           <span>{monthPaymentTotal.toLocaleString()}円</span>
         </div>
         <PaymentScheduleList schedules={monthPaymentSchedules} emptyText="今月の引き落とし予定はありません。" />
@@ -159,7 +260,14 @@ export function MoneyMode({
             <span>{selectedDate}</span>
           </div>
           <div className="segmented">
-            <button type="button" className={type === 'expense' ? 'active' : ''} onClick={() => setType('expense')}>
+            <button
+              type="button"
+              className={type === 'expense' ? 'active' : ''}
+              onClick={() => {
+                setType('expense');
+                setIsCreditCard(true);
+              }}
+            >
               支出
             </button>
             <button
@@ -263,6 +371,154 @@ export function MoneyMode({
   );
 }
 
+function buildMonthlyCashFlowWarning(
+  currentMonthKey: string,
+  monthRecords: MoneyRecord[],
+  monthPaymentSchedules: ReturnType<typeof buildCreditCardPaymentSchedules>,
+  salaryPaymentSchedules: ReturnType<typeof buildSalaryPaymentSchedules>,
+): { date: string; amount: number } | undefined {
+  const cashFlows = [
+    ...monthRecords
+      .filter((record) => record.type === 'income')
+      .map((record) => ({ date: record.date, amount: record.amount })),
+    ...monthRecords
+      .filter((record) => record.type === 'expense' && (!record.isCreditCard || !record.creditCardId))
+      .map((record) => ({ date: record.date, amount: -record.amount })),
+    ...monthPaymentSchedules.map((schedule) => ({
+      date: schedule.paymentDate,
+      amount: -schedule.amount,
+    })),
+    ...salaryPaymentSchedules.map((schedule) => ({
+      date: schedule.paymentDate,
+      amount: schedule.amount,
+    })),
+  ]
+    .filter((flow) => flow.date.startsWith(currentMonthKey))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  let runningBalance = 0;
+  let lowestBalance = 0;
+  let lowestDate = '';
+
+  cashFlows.forEach((flow) => {
+    runningBalance += flow.amount;
+    if (runningBalance < lowestBalance) {
+      lowestBalance = runningBalance;
+      lowestDate = flow.date;
+    }
+  });
+
+  return lowestBalance < 0 ? { date: lowestDate, amount: lowestBalance } : undefined;
+}
+
+function buildCreditCardFailureWarning(
+  currentMonthKey: string,
+  monthRecords: MoneyRecord[],
+  monthPaymentSchedules: ReturnType<typeof buildCreditCardPaymentSchedules>,
+  salaryPaymentSchedules: ReturnType<typeof buildSalaryPaymentSchedules>,
+  threshold: number,
+): { date: string; balance: number } | undefined {
+  const cashFlows = [
+    ...monthRecords
+      .filter((record) => record.type === 'income')
+      .map((record) => ({ date: record.date, amount: record.amount, kind: 'income' as const })),
+    ...monthRecords
+      .filter((record) => record.type === 'expense' && (!record.isCreditCard || !record.creditCardId))
+      .map((record) => ({ date: record.date, amount: -record.amount, kind: 'expense' as const })),
+    ...salaryPaymentSchedules.map((schedule) => ({
+      date: schedule.paymentDate,
+      amount: schedule.amount,
+      kind: 'salary' as const,
+    })),
+    ...monthPaymentSchedules.map((schedule) => ({
+      date: schedule.paymentDate,
+      amount: -schedule.amount,
+      kind: 'credit-card' as const,
+    })),
+  ]
+    .filter((flow) => flow.date.startsWith(currentMonthKey))
+    .sort((a, b) => {
+      const dateOrder = a.date.localeCompare(b.date);
+      if (dateOrder !== 0) return dateOrder;
+      if (a.kind === 'credit-card' && b.kind !== 'credit-card') return 1;
+      if (a.kind !== 'credit-card' && b.kind === 'credit-card') return -1;
+      return 0;
+    });
+
+  let runningBalance = 0;
+
+  for (const flow of cashFlows) {
+    runningBalance += flow.amount;
+
+    if (flow.kind === 'credit-card' && runningBalance < threshold) {
+      return { date: flow.date, balance: runningBalance };
+    }
+  }
+
+  return undefined;
+}
+
+function buildFutureCreditCardWarning({
+  currentMonthKey,
+  records,
+  events,
+  partTimeJobs,
+  paymentSchedules,
+  threshold,
+}: {
+  currentMonthKey: string;
+  records: MoneyRecord[];
+  events: CalendarEvent[];
+  partTimeJobs: PartTimeJob[];
+  paymentSchedules: ReturnType<typeof buildCreditCardPaymentSchedules>;
+  threshold: number;
+}): { paymentDate: string; balance: number } | undefined {
+  const futureMonthKeys = [moveMonthKey(currentMonthKey, 1), moveMonthKey(currentMonthKey, 2)];
+  const futureSalarySchedules = futureMonthKeys.flatMap((monthKey) =>
+    buildSalaryPaymentSchedules(events, partTimeJobs, monthKey),
+  );
+  const currentMonthCreditCardRecordIds = new Set(
+    records
+      .filter(
+        (record) =>
+          record.date.startsWith(currentMonthKey) &&
+          record.type === 'expense' &&
+          record.isCreditCard &&
+          record.creditCardId,
+      )
+      .map((record) => record.id),
+  );
+  const futurePaymentSchedules = paymentSchedules.filter(
+    (schedule) =>
+      schedule.paymentDate > `${currentMonthKey}-31` &&
+      schedule.records.some((record) => currentMonthCreditCardRecordIds.has(record.id)),
+  );
+
+  for (const futureMonthKey of futureMonthKeys) {
+    const monthRecords = records.filter((record) => record.date.startsWith(futureMonthKey));
+    const monthPaymentSchedules = paymentSchedules.filter((schedule) =>
+      schedule.paymentDate.startsWith(futureMonthKey),
+    );
+    const monthSalarySchedules = futureSalarySchedules.filter((schedule) =>
+      schedule.paymentDate.startsWith(futureMonthKey),
+    );
+    const warning = buildCreditCardFailureWarning(
+      futureMonthKey,
+      monthRecords,
+      monthPaymentSchedules,
+      monthSalarySchedules,
+      threshold,
+    );
+
+    if (!warning) continue;
+    if (!futurePaymentSchedules.some((schedule) => schedule.paymentDate === warning.date)) continue;
+
+    return { paymentDate: warning.date, balance: warning.balance };
+  }
+
+  return undefined;
+}
+
 function SummaryCard({ label, value, tone }: { label: string; value: number; tone: 'income' | 'expense' }) {
   return (
     <article className={`summary-card ${tone}`}>
@@ -273,10 +529,12 @@ function SummaryCard({ label, value, tone }: { label: string; value: number; ton
 }
 
 function PiggyBankPanel({
+  monthLabel,
   balance,
   incomeTotal,
   expenseTotal,
 }: {
+  monthLabel: string;
   balance: number;
   incomeTotal: number;
   expenseTotal: number;
@@ -290,7 +548,7 @@ function PiggyBankPanel({
         ¥
       </div>
       <div className="piggy-bank-main">
-        <span>今月の貯金箱</span>
+        <span>{monthLabel}の貯金箱</span>
         <strong>{savedAmount.toLocaleString()}円</strong>
         <div className="piggy-track">
           <div style={{ width: `${progress}%` }} />

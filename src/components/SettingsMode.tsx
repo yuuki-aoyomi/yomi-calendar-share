@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { AppBackupData, CalendarTag, CreditCardSetting, PartTimeJob } from '../types/calendar';
+import type { AppBackupData, CalendarEvent, CalendarTag, CreditCardSetting, PartTimeJob } from '../types/calendar';
 import { createBackupData, downloadBackupFile, readBackupFile } from '../utils/backup';
 import { createId } from '../utils/id';
 import { formatPayrollRule } from '../utils/salary';
@@ -12,6 +12,7 @@ type SettingsModeProps = {
   onThemeChange: (theme: 'light' | 'dark') => void;
   onWriteTokenChange: (writeToken: string) => void;
   onTagsChange: React.Dispatch<React.SetStateAction<CalendarTag[]>>;
+  onEventsChange: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
   onPartTimeJobsChange: React.Dispatch<React.SetStateAction<PartTimeJob[]>>;
   onCreditCardsChange: React.Dispatch<React.SetStateAction<CreditCardSetting[]>>;
 };
@@ -24,17 +25,20 @@ export function SettingsMode({
   onThemeChange,
   onWriteTokenChange,
   onTagsChange,
+  onEventsChange,
   onPartTimeJobsChange,
   onCreditCardsChange,
 }: SettingsModeProps) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [jobName, setJobName] = useState('');
+  const [jobTagColor, setJobTagColor] = useState('#1fbf83');
   const [hourlyWage, setHourlyWage] = useState('');
   const [lateNightHourlyWage, setLateNightHourlyWage] = useState('');
   const [jobClosingDay, setJobClosingDay] = useState('末');
   const [jobPaymentDay, setJobPaymentDay] = useState('25');
   const [cardName, setCardName] = useState('');
+  const [cardTagColor, setCardTagColor] = useState('#f5b400');
   const [closingDay, setClosingDay] = useState('末');
   const [paymentDay, setPaymentDay] = useState('27');
 
@@ -82,7 +86,7 @@ export function SettingsMode({
       id: createId(),
       name,
       type: 'work',
-      color: '#1fbf83',
+      color: jobTagColor,
       createdAt: now,
       updatedAt: now,
     };
@@ -106,6 +110,7 @@ export function SettingsMode({
       },
     ]);
     setJobName('');
+    setJobTagColor('#1fbf83');
     setHourlyWage('');
     setLateNightHourlyWage('');
     setJobClosingDay('末');
@@ -124,7 +129,7 @@ export function SettingsMode({
       id: createId(),
       name,
       type: 'credit-card',
-      color: '#f5b400',
+      color: cardTagColor,
       createdAt: now,
       updatedAt: now,
     };
@@ -143,8 +148,47 @@ export function SettingsMode({
       },
     ]);
     setCardName('');
+    setCardTagColor('#f5b400');
     setClosingDay('末');
     setPaymentDay('27');
+  };
+
+  const handleDeleteTag = (tagId: string) => {
+    const tag = backupData.tags.find((item) => item.id === tagId);
+
+    onTagsChange((current) => current.filter((item) => item.id !== tagId));
+    onEventsChange((current) =>
+      current.map((event) => {
+        if (!(event.tagIds ?? []).includes(tagId)) return event;
+
+        return {
+          ...event,
+          tagIds: (event.tagIds ?? []).filter((id) => id !== tagId),
+          tags: tag ? (event.tags ?? []).filter((name) => name !== tag.name) : event.tags,
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    );
+    onPartTimeJobsChange((current) => current.filter((job) => job.tagId !== tagId));
+    onCreditCardsChange((current) => current.filter((card) => card.tagId !== tagId));
+  };
+
+  const handleDeletePartTimeJob = (jobId: string) => {
+    const job = backupData.partTimeJobs.find((item) => item.id === jobId);
+
+    if (!job) return;
+
+    handleDeleteTag(job.tagId);
+    onPartTimeJobsChange((current) => current.filter((item) => item.id !== jobId));
+  };
+
+  const handleDeleteCreditCard = (cardId: string) => {
+    const card = backupData.creditCards.find((item) => item.id === cardId);
+
+    if (!card) return;
+
+    handleDeleteTag(card.tagId);
+    onCreditCardsChange((current) => current.filter((item) => item.id !== cardId));
   };
 
   return (
@@ -164,6 +208,16 @@ export function SettingsMode({
               <label>
                 名前
                 <input value={jobName} onChange={(event) => setJobName(event.target.value)} placeholder="バイトA" />
+              </label>
+              <label>
+                色
+                <div className="color-input-row">
+                  <input type="color" value={jobTagColor} onChange={(event) => setJobTagColor(event.target.value)} />
+                  <span className="color-preview-chip">
+                    <i style={{ background: jobTagColor }} />
+                    {jobTagColor}
+                  </span>
+                </div>
               </label>
               <label>
                 時給
@@ -212,7 +266,7 @@ export function SettingsMode({
                 detail: `${job.hourlyWage ? `時給 ${job.hourlyWage.toLocaleString()}円` : '時給未設定'} / ${formatPayrollRule(job)}`,
               }))}
               emptyText="バイト先はまだありません。"
-              onDelete={(id) => onPartTimeJobsChange((current) => current.filter((job) => job.id !== id))}
+              onDelete={handleDeletePartTimeJob}
             />
           </form>
 
@@ -226,6 +280,16 @@ export function SettingsMode({
               <input value={cardName} onChange={(event) => setCardName(event.target.value)} placeholder="クレカA" />
             </label>
             <div className="form-grid">
+              <label>
+                色
+                <div className="color-input-row">
+                  <input type="color" value={cardTagColor} onChange={(event) => setCardTagColor(event.target.value)} />
+                  <span className="color-preview-chip">
+                    <i style={{ background: cardTagColor }} />
+                    {cardTagColor}
+                  </span>
+                </div>
+              </label>
               <label>
                 締め日
                 <input value={closingDay} onChange={(event) => setClosingDay(event.target.value)} placeholder="末 / 15" />
@@ -245,9 +309,34 @@ export function SettingsMode({
                 detail: `${card.closingDay === 31 ? '末' : card.closingDay}日締め / ${card.paymentDay}日払い`,
               }))}
               emptyText="クレカはまだありません。"
-              onDelete={(id) => onCreditCardsChange((current) => current.filter((card) => card.id !== id))}
+              onDelete={handleDeleteCreditCard}
             />
           </form>
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <div>
+          <h3>タグ管理</h3>
+          <p>タグを削除すると、そのタグは予定から外れます。バイト先やクレカに紐づくタグの場合、対応する設定も一緒に削除されます。</p>
+        </div>
+        <div className="tag-management-list">
+          {backupData.tags.length === 0 ? (
+            <p className="helper-text">タグはまだありません。</p>
+          ) : (
+            backupData.tags.map((tag) => (
+              <div key={tag.id} className="tag-management-item">
+                <span className="tag-management-main">
+                  <i style={{ background: tag.color }} />
+                  <strong>{tag.name}</strong>
+                  <small>{tag.type}</small>
+                </span>
+                <button type="button" className="ghost-button danger" onClick={() => handleDeleteTag(tag.id)}>
+                  削除
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </section>
 

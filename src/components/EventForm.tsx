@@ -75,6 +75,7 @@ export function EventForm({
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [newTagName, setNewTagName] = useState('');
   const [newTagType, setNewTagType] = useState<CalendarTagType>('custom');
+  const [newTagColor, setNewTagColor] = useState(tagColors.custom);
   const [recurrence, setRecurrence] = useState<RecurrenceInput>('none');
   const [recurrenceUntil, setRecurrenceUntil] = useState('');
   const [timelineItems, setTimelineItems] = useState<EventTimelineItem[]>([]);
@@ -153,7 +154,7 @@ export function EventForm({
       id: createId(),
       name,
       type: newTagType,
-      color: tagColors[newTagType],
+      color: newTagColor,
       createdAt: now,
       updatedAt: now,
     };
@@ -412,13 +413,32 @@ export function EventForm({
         )}
 
         <div className="tag-create-row">
-          <select value={newTagType} onChange={(event) => setNewTagType(event.target.value as CalendarTagType)}>
+          <select
+            value={newTagType}
+            onChange={(event) => {
+              const nextType = event.target.value as CalendarTagType;
+              setNewTagType(nextType);
+              setNewTagColor(tagColors[nextType]);
+            }}
+          >
             {tagTypeOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
           </select>
+          <div className="color-input-row">
+            <input
+              type="color"
+              value={newTagColor}
+              aria-label="タグの色"
+              onChange={(event) => setNewTagColor(event.target.value)}
+            />
+            <span className="color-preview-chip">
+              <i style={{ background: newTagColor }} />
+              {newTagColor}
+            </span>
+          </div>
           <input value={newTagName} onChange={(event) => setNewTagName(event.target.value)} placeholder="例: UserA / バイトA" />
           <button type="button" className="ghost-button" onClick={handleCreateTag}>
             作成

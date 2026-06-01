@@ -122,8 +122,23 @@ export const calculateSalaryPaymentDate = (workDateKey: string, job: PartTimeJob
   const workMonthIndex = workDate.getMonth();
   const workDay = workDate.getDate();
   const closingDay = getActualDay(workYear, workMonthIndex, normalizeClosingDay(job));
-  const paymentMonthOffset = workDay <= closingDay ? 1 : 2;
-  const paymentBaseDate = new Date(workYear, workMonthIndex + paymentMonthOffset, 1);
+  const closingBaseDate =
+    workDay <= closingDay
+      ? new Date(workYear, workMonthIndex, closingDay)
+      : new Date(
+          workYear,
+          workMonthIndex + 1,
+          getActualDay(workYear, workMonthIndex + 1, normalizeClosingDay(job)),
+        );
+  const closingYear = closingBaseDate.getFullYear();
+  const closingMonthIndex = closingBaseDate.getMonth();
+  const paymentDayInClosingMonth = getActualDay(
+    closingYear,
+    closingMonthIndex,
+    normalizePaymentDay(job),
+  );
+  const paymentMonthOffset = paymentDayInClosingMonth > closingBaseDate.getDate() ? 0 : 1;
+  const paymentBaseDate = new Date(closingYear, closingMonthIndex + paymentMonthOffset, 1);
   const paymentYear = paymentBaseDate.getFullYear();
   const paymentMonthIndex = paymentBaseDate.getMonth();
   const paymentDay = getActualDay(paymentYear, paymentMonthIndex, normalizePaymentDay(job));
