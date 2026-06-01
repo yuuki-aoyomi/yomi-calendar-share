@@ -8,6 +8,7 @@ import { MoneyMode } from './components/MoneyMode';
 import { LoveMode } from './components/LoveMode';
 import { SettingsMode } from './components/SettingsMode';
 import { HelpModal } from './components/HelpModal';
+import { CalendarInsights } from './components/CalendarInsights';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
 import type {
   CalendarEvent,
@@ -30,6 +31,7 @@ function App() {
   const [activeMode, setActiveMode] = useState<CalendarMode>('schedule');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [calendarEditRequest, setCalendarEditRequest] = useState<{ eventId: string; requestedAt: number } | null>(null);
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [events, setEvents] = useLocalStorageState<CalendarEvent[]>(
@@ -236,6 +238,10 @@ function App() {
           tags={tags}
           onMonthChange={setCurrentMonth}
           onSelectDate={setSelectedDate}
+          onEditEvent={(eventId) => {
+            setActiveMode('schedule');
+            setCalendarEditRequest({ eventId, requestedAt: Date.now() });
+          }}
         />
 
         <section className="workspace-panel">
@@ -255,6 +261,7 @@ function App() {
               onEventsChange={setEvents}
               onDailyPhotosChange={setDailyPhotos}
               onTagsChange={setTags}
+              editRequest={calendarEditRequest}
             />
           )}
 
@@ -331,6 +338,18 @@ function App() {
           )}
           {isHelpOpen && <HelpModal onClose={() => setIsHelpOpen(false)} />}
 
+        </section>
+        <section className="calendar-panel insights-panel">
+          <CalendarInsights
+            currentMonth={currentMonth}
+            selectedDate={selectedDate}
+            events={events}
+            moneyRecords={moneyRecords}
+            partTimeJobs={partTimeJobs}
+            creditCards={creditCards}
+            dailyPhotos={dailyPhotos}
+            loveLogs={loveLogs}
+          />
         </section>
       </div>
     </main>
