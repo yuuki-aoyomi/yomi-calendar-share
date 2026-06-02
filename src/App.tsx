@@ -28,6 +28,16 @@ const calendarId = appConfig.calendarId;
 const remoteApiEnabled = shouldUseRemoteApi();
 const localDataEnabled = !remoteApiEnabled;
 
+export type VisualWeather = 'sunny' | 'rain' | 'thunder' | 'cloudy' | 'snow' | 'hail';
+
+const getTimePeriod = (): 'morning' | 'day' | 'evening' | 'night' => {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 11) return 'morning';
+  if (hour >= 11 && hour < 16) return 'day';
+  if (hour >= 16 && hour < 19) return 'evening';
+  return 'night';
+};
+
 function App() {
   const [activeMode, setActiveMode] = useState<CalendarMode>('schedule');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -83,8 +93,17 @@ function App() {
     'yomi-calendar-share:write-token',
     '',
   );
+  const [visualBackgroundEnabled, setVisualBackgroundEnabled] = useLocalStorageState<boolean>(
+    'yomi-calendar-share:visual-background-enabled',
+    true,
+  );
+  const [visualWeather, setVisualWeather] = useLocalStorageState<VisualWeather>(
+    'yomi-calendar-share:visual-weather',
+    'sunny',
+  );
 
   const currentMonthKey = useMemo(() => getMonthKey(currentMonth), [currentMonth]);
+  const [timePeriod, setTimePeriod] = useState(getTimePeriod);
   const [isRemoteLoaded, setIsRemoteLoaded] = useState(!remoteApiEnabled);
   const [remoteLoadError, setRemoteLoadError] = useState('');
   const lastSavedRemoteSnapshot = useRef('');
@@ -92,6 +111,11 @@ function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setTimePeriod(getTimePeriod()), 60_000);
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     if (!remoteApiEnabled) return;
@@ -200,7 +224,18 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main
+      className={[
+        'app-shell',
+        visualBackgroundEnabled ? 'visual-mode' : '',
+        visualBackgroundEnabled ? `weather-${visualWeather}` : '',
+        visualBackgroundEnabled ? `time-${timePeriod}` : '',
+      ].join(' ')}
+    >
+      <div className="splash-screen" aria-hidden="true">
+        <h1>Yomi Calendar Share</h1>
+      </div>
+      {visualBackgroundEnabled && <WeatherBackground weather={visualWeather} />}
       <section className="app-hero">
         <div>
           <p className="eyebrow">Shared calendar foundation</p>
@@ -357,6 +392,10 @@ function App() {
                   }}
                   onThemeChange={setTheme}
                   onWriteTokenChange={setWriteToken}
+                  visualBackgroundEnabled={visualBackgroundEnabled}
+                  visualWeather={visualWeather}
+                  onVisualBackgroundEnabledChange={setVisualBackgroundEnabled}
+                  onVisualWeatherChange={setVisualWeather}
                   onTagsChange={setTags}
                   onEventsChange={setEvents}
                   onPartTimeJobsChange={setPartTimeJobs}
@@ -371,6 +410,30 @@ function App() {
         </section>
       </div>
     </main>
+  );
+}
+
+function WeatherBackground({ weather }: { weather: VisualWeather }) {
+  return (
+    <div className="weather-background" aria-hidden="true">
+      <div className="weather-sky-layer" />
+      {weather === 'sunny' && <div className="weather-sun" />}
+      {(weather === 'cloudy' || weather === 'rain' || weather === 'thunder' || weather === 'snow' || weather === 'hail') && (
+        <>
+          <div className="weather-cloud cloud-a" />
+          <div className="weather-cloud cloud-b" />
+        </>
+      )}
+      {weather === 'rain' && <div className="rain-layer" />}
+      {weather === 'thunder' && (
+        <>
+          <div className="rain-layer heavy" />
+          <div className="lightning-bolt" />
+        </>
+      )}
+      {weather === 'snow' && <div className="snow-layer" />}
+      {weather === 'hail' && <div className="hail-layer" />}
+    </div>
   );
 }
 

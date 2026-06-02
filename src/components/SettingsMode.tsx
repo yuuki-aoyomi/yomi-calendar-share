@@ -10,6 +10,7 @@ import type {
 import { createBackupData, downloadBackupFile, readBackupFile } from '../utils/backup';
 import { createId } from '../utils/id';
 import { formatPayrollRule } from '../utils/salary';
+import type { VisualWeather } from '../App';
 
 type SettingsModeProps = {
   theme: 'light' | 'dark';
@@ -18,6 +19,10 @@ type SettingsModeProps = {
   onImportBackup: (data: AppBackupData['data']) => void;
   onThemeChange: (theme: 'light' | 'dark') => void;
   onWriteTokenChange: (writeToken: string) => void;
+  visualBackgroundEnabled: boolean;
+  visualWeather: VisualWeather;
+  onVisualBackgroundEnabledChange: (enabled: boolean) => void;
+  onVisualWeatherChange: (weather: VisualWeather) => void;
   onTagsChange: React.Dispatch<React.SetStateAction<CalendarTag[]>>;
   onEventsChange: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
   onPartTimeJobsChange: React.Dispatch<React.SetStateAction<PartTimeJob[]>>;
@@ -43,6 +48,10 @@ export function SettingsMode({
   onImportBackup,
   onThemeChange,
   onWriteTokenChange,
+  visualBackgroundEnabled,
+  visualWeather,
+  onVisualBackgroundEnabledChange,
+  onVisualWeatherChange,
   onTagsChange,
   onEventsChange,
   onPartTimeJobsChange,
@@ -765,6 +774,35 @@ export function SettingsMode({
             ダーク
           </button>
         </div>
+      </section>
+      <section className="settings-section">
+        <div>
+          <h3>背景演出</h3>
+          <p>時間帯と天気に合わせて背景を変えます。天気は今のところ手動で選びます。</p>
+        </div>
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={visualBackgroundEnabled}
+            onChange={(event) => onVisualBackgroundEnabledChange(event.target.checked)}
+          />
+          天気背景を使う
+        </label>
+        <label>
+          天気
+          <select
+            value={visualWeather}
+            disabled={!visualBackgroundEnabled}
+            onChange={(event) => onVisualWeatherChange(event.target.value as VisualWeather)}
+          >
+            <option value="sunny">晴れ</option>
+            <option value="rain">雨</option>
+            <option value="thunder">雷</option>
+            <option value="cloudy">曇り</option>
+            <option value="snow">雪</option>
+            <option value="hail">霰・雹</option>
+          </select>
+        </label>
       </section>
       </>
       )}
