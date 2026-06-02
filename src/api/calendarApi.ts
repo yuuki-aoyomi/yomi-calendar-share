@@ -13,7 +13,34 @@ type ImageUploadPayload = {
   contentType: string;
 };
 
+type ApiErrorPayload = {
+  error?: {
+    code?: string;
+    message?: string;
+  };
+  message?: string;
+};
+
 const apiUrl = (path: string) => `${appConfig.apiBaseUrl}${path}`;
+
+const getResponseErrorMessage = async (response: Response, fallback: string): Promise<string> => {
+  const contentType = response.headers.get('content-type') ?? '';
+
+  if (contentType.includes('application/json')) {
+    const payload = (await response.json().catch(() => undefined)) as ApiErrorPayload | undefined;
+    const message = payload?.error?.message ?? payload?.message;
+    const code = payload?.error?.code;
+
+    if (message) {
+      return code ? `${message} (${code}, HTTP ${response.status})` : `${message} (HTTP ${response.status})`;
+    }
+  }
+
+  const text = await response.text().catch(() => '');
+  const detail = text.trim().slice(0, 160);
+
+  return detail ? `${fallback} ${detail} (HTTP ${response.status})` : `${fallback} (HTTP ${response.status})`;
+};
 
 export const shouldUseRemoteApi = () => {
   if (appConfig.runtimeTarget === 'cloudflare' || appConfig.apiBaseUrl.length > 0) return true;
@@ -89,7 +116,7 @@ export const uploadDailyPhoto = async ({
   });
 
   if (!response.ok) {
-    throw new Error('画像アップロードに失敗しました。');
+    throw new Error(await getResponseErrorMessage(response, '画像アップロードに失敗しました。'));
   }
 
   return (await response.json()) as ImageUploadPayload;

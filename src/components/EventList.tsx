@@ -23,20 +23,20 @@ const categoryLabels: Record<CalendarEvent['category'], string> = {
   photo: '写真',
 };
 
-const categoryDescriptions: Record<CalendarEvent['category'], string> = {
-  schedule: '通常予定',
-  diary: '日記',
-  todo: '未完了・完了を管理',
-  detail: '細かい予定',
-  photo: '写真メモ',
-};
-
-const categoryOrder: CalendarEvent['category'][] = ['todo', 'schedule', 'detail', 'diary', 'photo'];
-
 const recurrenceLabels = {
   weekly: '毎週',
   monthly: '毎月',
 } as const;
+
+const compareEventStartTime = (a: CalendarEvent, b: CalendarEvent): number => {
+  if (a.startTime && !b.startTime) return -1;
+  if (!a.startTime && b.startTime) return 1;
+
+  const startTimeDiff = (a.startTime || '').localeCompare(b.startTime || '');
+  if (startTimeDiff !== 0) return startTimeDiff;
+
+  return a.createdAt.localeCompare(b.createdAt);
+};
 
 // 選択日の予定だけを表示します。ToDo は予定カードより軽いリストとして扱います。
 export function EventList({
@@ -51,17 +51,18 @@ export function EventList({
   onToggleTodo,
 }: EventListProps) {
   const [draggingEventId, setDraggingEventId] = useState<string | null>(null);
-  const eventSections = categoryOrder
-    .map((category) => ({
-      category,
-      events: events.filter((event) => event.category === category),
-    }))
-    .filter((section) => section.events.length > 0 || (section.category === 'todo' && tags.length > 0));
-  const todoEvents = events.filter((event) => event.category === 'todo');
+  const todoEvents = events
+    .filter((event) => event.category === 'todo')
+    .sort((a, b) => {
+      const orderDiff = (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER);
+      if (orderDiff !== 0) return orderDiff;
+      return a.createdAt.localeCompare(b.createdAt);
+    });
+  const scheduleEvents = events.filter((event) => event.category !== 'todo').sort(compareEventStartTime);
   const completedTodoCount = todoEvents.filter((event) => event.done).length;
   const todoProgress = todoEvents.length > 0 ? Math.round((completedTodoCount / todoEvents.length) * 100) : 0;
 
-  if (events.length === 0 && paymentSchedules.length === 0 && salarySchedules.length === 0 && tags.length === 0) {
+  if (events.length === 0 && paymentSchedules.length === 0 && salarySchedules.length === 0) {
     return (
       <div className="empty-state">
         <h3>{selectedDate}</h3>
@@ -115,56 +116,39 @@ export function EventList({
           ))}
         </section>
       )}
-      {eventSections.map((section) => (
-        <section className="event-category-section" key={section.category}>
+      {todoEvents.length > 0 && (
+        <section className="event-category-section">
           <div className="event-category-heading">
-            <h4>{categoryLabels[section.category]}</h4>
-            <span>
-              {section.category === 'todo'
-                ? `${completedTodoCount}/${todoEvents.length}完了 / ${todoProgress}%`
-                : `${categoryDescriptions[section.category]} / ${section.events.length}件`}
-            </span>
+            <h4>{categoryLabels.todo}</h4>
+            <span>{completedTodoCount}/{todoEvents.length}完了 / {todoProgress}%</span>
           </div>
-          {section.category === 'todo' && (
-            <div className="todo-progress" aria-label={`ToDo ${completedTodoCount}/${todoEvents.length} 完了`}>
-              <div style={{ width: `${todoProgress}%` }} />
-            </div>
-          )}
-          {section.category === 'todo' ? (
-            <TodoTagGroups
-              events={section.events}
-              tags={tags}
-              draggingEventId={draggingEventId}
-              onEditEvent={onEditEvent}
-              onAddTodo={onAddTodo}
-              onDragStart={setDraggingEventId}
-              onDragEnd={() => setDraggingEventId(null)}
-              onDropEvent={(orderedIds) => {
-                onReorderEvents(orderedIds);
-                setDraggingEventId(null);
-              }}
-              onToggleTodo={onToggleTodo}
-            />
-          ) : (
-            section.events.map((event) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                events={section.events}
-                tags={tags}
-                draggingEventId={draggingEventId}
-                onEditEvent={onEditEvent}
-                onDragStart={setDraggingEventId}
-                onDragEnd={() => setDraggingEventId(null)}
-                onDropEvent={(orderedIds) => {
-                  onReorderEvents(orderedIds);
-                  setDraggingEventId(null);
-                }}
-              />
-            ))
-          )}
+          <div className="todo-progress" aria-label={`ToDo ${completedTodoCount}/${todoEvents.length} 完了`}>
+            <div style={{ width: `${todoProgress}%` }} />
+          </div>
+          <TodoTagGroups
+            events={todoEvents}
+            tags={tags}
+            draggingEventId={draggingEventId}
+            onEditEvent={onEditEvent}
+            onAddTodo={onAddTodo}
+            onDragStart={setDraggingEventId}
+            onDragEnd={() => setDraggingEventId(null)}
+            onDropEvent={(orderedIds) => {
+              onReorderEvents(orderedIds);
+              setDraggingEventId(null);
+            }}
+            onToggleTodo={onToggleTodo}
+          />
         </section>
+      )}
+      {scheduleEvents.map((event) => (
+        <EventCard key={event.id} event={event} tags={tags} onEditEvent={onEditEvent} />
       ))}
+      {todoEvents.length === 0 && scheduleEvents.length === 0 && (paymentSchedules.length > 0 || salarySchedules.length > 0) && (
+        <div className="empty-state">
+          <p>手入力の予定はまだありません。</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -217,12 +201,14 @@ function TodoTagGroups({
       groups.set('untagged', groups.get('untagged') ?? { events: [] });
     }
 
-    return [...groups.entries()].map(([key, group]) => ({
-      key,
-      tag: group.tag,
-      events: group.events,
-      doneCount: group.events.filter((event) => event.done).length,
-    }));
+    return [...groups.entries()]
+      .map(([key, group]) => ({
+        key,
+        tag: group.tag,
+        events: group.events,
+        doneCount: group.events.filter((event) => event.done).length,
+      }))
+      .filter((group) => group.events.length > 0);
   }, [events, tags]);
 
   const handleSubmitTodo = (event: React.FormEvent<HTMLFormElement>, tagId?: string) => {
@@ -396,22 +382,12 @@ function TodoListItem({
 
 function EventCard({
   event,
-  events,
   tags,
-  draggingEventId,
   onEditEvent,
-  onDragStart,
-  onDragEnd,
-  onDropEvent,
 }: {
   event: CalendarEvent;
-  events: CalendarEvent[];
   tags: CalendarTag[];
-  draggingEventId: string | null;
   onEditEvent: (id: string) => void;
-  onDragStart: (id: string) => void;
-  onDragEnd: () => void;
-  onDropEvent: (orderedIds: string[]) => void;
 }) {
   const mainTagColor = (event.tagIds ?? [])
     .map((tagId) => tags.find((item) => item.id === tagId)?.color)
@@ -419,32 +395,10 @@ function EventCard({
 
   return (
     <article
-      className={draggingEventId === event.id ? 'item-card dragging' : 'item-card'}
+      className="item-card"
       style={mainTagColor ? { borderLeftColor: mainTagColor } : undefined}
-      onDragOver={(dragEvent) => {
-        if (!draggingEventId || draggingEventId === event.id) return;
-        dragEvent.preventDefault();
-      }}
-      onDrop={(dragEvent) => {
-        dragEvent.preventDefault();
-        if (!draggingEventId || draggingEventId === event.id) return;
-        onDropEvent(moveEventId(events.map((item) => item.id), draggingEventId, event.id));
-      }}
     >
       <div className="item-main">
-        <span
-          className="drag-handle"
-          role="button"
-          aria-label={`${event.title} を並び替え`}
-          draggable
-          onDragStart={(dragEvent) => {
-            dragEvent.dataTransfer.effectAllowed = 'move';
-            onDragStart(event.id);
-          }}
-          onDragEnd={onDragEnd}
-        >
-          ⠿
-        </span>
         <div className="event-card-labels">
           <span className={`category-pill ${event.category}`}>{categoryLabels[event.category]}</span>
           {event.recurrence && (

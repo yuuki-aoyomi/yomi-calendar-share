@@ -18,8 +18,10 @@ export function DailyPhotoPanel({ calendarId, writeToken, selectedDate, photos, 
   const [imageBlob, setImageBlob] = useState<Blob | undefined>();
   const [imageMeta, setImageMeta] = useState<EventImageMeta | undefined>();
   const [isCompressing, setIsCompressing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
   const selectedPhotos = photos.filter((photo) => photo.date === selectedDate);
+  const canCancel = Boolean(imageUrl || memo.trim() || error);
 
   const reset = () => {
     setMemo('');
@@ -59,12 +61,13 @@ export function DailyPhotoPanel({ calendarId, writeToken, selectedDate, photos, 
   };
 
   const handleAddPhoto = async () => {
-    if (!imageUrl && !memo.trim()) return;
+    if (isUploading || (!imageUrl && !memo.trim())) return;
 
     const now = new Date().toISOString();
     const photoId = createId();
     let savedImageUrl = imageUrl;
     let imageKey: string | undefined;
+    setError('');
 
     if (shouldUseRemoteApi() && imageBlob) {
       if (!writeToken.trim()) {
@@ -73,6 +76,7 @@ export function DailyPhotoPanel({ calendarId, writeToken, selectedDate, photos, 
       }
 
       try {
+        setIsUploading(true);
         const uploadedImage = await uploadDailyPhoto({
           calendarId,
           date: selectedDate,
@@ -86,6 +90,8 @@ export function DailyPhotoPanel({ calendarId, writeToken, selectedDate, photos, 
       } catch (uploadError) {
         setError(uploadError instanceof Error ? uploadError.message : '画像アップロードに失敗しました。');
         return;
+      } finally {
+        setIsUploading(false);
       }
     }
 
@@ -113,9 +119,15 @@ export function DailyPhotoPanel({ calendarId, writeToken, selectedDate, photos, 
       </div>
 
       <div className="daily-photo-form">
-        <input type="file" accept="image/*" onChange={handleFileChange} />
-        <textarea value={memo} onChange={(event) => setMemo(event.target.value)} placeholder="写真メモ" />
+        <input type="file" accept="image/*" onChange={handleFileChange} disabled={isCompressing || isUploading} />
+        <textarea
+          value={memo}
+          onChange={(event) => setMemo(event.target.value)}
+          placeholder="写真メモ"
+          disabled={isUploading}
+        />
         {isCompressing && <p className="helper-text">画像を軽量化しています...</p>}
+        {isUploading && <p className="helper-text">画像をアップロードしています...</p>}
         {error && <p className="error-text">{error}</p>}
         {imageUrl && (
           <figure className="image-preview-card">
@@ -130,9 +142,16 @@ export function DailyPhotoPanel({ calendarId, writeToken, selectedDate, photos, 
             )}
           </figure>
         )}
-        <button type="button" className="primary-button" onClick={handleAddPhoto}>
-          写真を追加
-        </button>
+        <div className="form-actions">
+          {canCancel && (
+            <button type="button" className="ghost-button" onClick={reset} disabled={isUploading}>
+              キャンセル
+            </button>
+          )}
+          <button type="button" className="primary-button" onClick={handleAddPhoto} disabled={isCompressing || isUploading}>
+            {isUploading ? 'アップロード中' : '写真を追加'}
+          </button>
+        </div>
       </div>
 
       {selectedPhotos.length > 0 && (

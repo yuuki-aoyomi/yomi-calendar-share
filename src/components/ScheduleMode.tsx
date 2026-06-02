@@ -51,14 +51,24 @@ export function ScheduleMode({
   }, [editRequest]);
   const selectedEvents = useMemo(
     () =>
-      getEventsForDate(events, selectedDate)
-        .sort((a, b) => {
+      getEventsForDate(events, selectedDate).sort((a, b) => {
+        if (a.category === 'todo' && b.category !== 'todo') return -1;
+        if (a.category !== 'todo' && b.category === 'todo') return 1;
+
+        if (a.category === 'todo' && b.category === 'todo') {
           const orderDiff = (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER);
           if (orderDiff !== 0) return orderDiff;
-          if (!a.startTime && b.startTime) return -1;
-          if (a.startTime && !b.startTime) return 1;
-          return (a.startTime || '').localeCompare(b.startTime || '');
-        }),
+          return a.createdAt.localeCompare(b.createdAt);
+        }
+
+        if (a.startTime && !b.startTime) return -1;
+        if (!a.startTime && b.startTime) return 1;
+
+        const startTimeDiff = (a.startTime || '').localeCompare(b.startTime || '');
+        if (startTimeDiff !== 0) return startTimeDiff;
+
+        return a.createdAt.localeCompare(b.createdAt);
+      }),
     [events, selectedDate],
   );
   const selectedPaymentSchedules = useMemo(

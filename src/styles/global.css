@@ -101,7 +101,7 @@ button {
 }
 
 .app-shell.visual-mode.weather-rain::before {
-  background: linear-gradient(180deg, #303b4c 0%, #516075 52%, #8d98a7 100%);
+  background: linear-gradient(180deg, #222b3a 0%, #3c485d 52%, #6c7685 100%);
 }
 
 .app-shell.visual-mode.weather-thunder::before {
@@ -110,6 +110,10 @@ button {
 
 .app-shell.visual-mode.weather-hail::before {
   background: linear-gradient(180deg, #667889 0%, #a9b8c4 54%, #e4eef5 100%);
+}
+
+.app-shell.visual-mode.weather-snow::before {
+  background: linear-gradient(180deg, #4d5d70 0%, #7e8d9c 54%, #d6dee6 100%);
 }
 
 .splash-screen {
@@ -248,40 +252,47 @@ button {
 }
 
 .rain-layer {
-  opacity: 0.78;
+  opacity: 0.72;
   background-image:
-    repeating-linear-gradient(
-      96deg,
-      transparent 0 10px,
-      rgba(255, 255, 255, 0.58) 11px 12px,
-      transparent 13px 24px
-    ),
-    repeating-linear-gradient(
-      96deg,
-      transparent 0 18px,
-      rgba(205, 224, 242, 0.42) 19px 20px,
-      transparent 21px 38px
-    );
-  background-size: 54px 42px, 78px 56px;
-  animation: rain-fall 0.32s linear infinite;
+    radial-gradient(ellipse 1px 18px at 50% 18%, rgba(245, 250, 255, 0.5) 0 88%, transparent 92%),
+    radial-gradient(ellipse 1px 14px at 50% 24%, rgba(218, 235, 248, 0.38) 0 88%, transparent 92%),
+    radial-gradient(ellipse 1px 22px at 50% 16%, rgba(255, 255, 255, 0.32) 0 88%, transparent 92%),
+    radial-gradient(ellipse 1px 12px at 50% 28%, rgba(210, 228, 244, 0.3) 0 88%, transparent 92%);
+  background-position: 7px 0, 29px 22px, 51px 44px, 73px 10px;
+  background-size: 28px 118px, 42px 148px, 56px 132px, 68px 176px;
+  animation: rain-fall 0.86s linear infinite;
 }
 
 .rain-layer.heavy {
-  opacity: 0.76;
-  animation-duration: 0.34s;
+  opacity: 0.78;
+  background-size: 22px 104px, 34px 134px, 46px 118px, 56px 158px;
+  animation-duration: 0.62s;
 }
 
 .lightning-bolt {
   position: absolute;
-  top: 10vh;
-  right: 20vw;
-  width: 80px;
-  height: 150px;
+  top: 7vh;
+  right: 16vw;
+  width: 132px;
+  height: 250px;
   clip-path: polygon(42% 0, 80% 0, 58% 42%, 88% 42%, 28% 100%, 42% 54%, 14% 54%);
-  background: rgba(255, 246, 160, 0.92);
-  filter: drop-shadow(0 0 28px rgba(255, 246, 160, 0.86));
+  background: rgba(255, 250, 168, 0.98);
+  filter:
+    drop-shadow(0 0 18px rgba(255, 250, 168, 0.96))
+    drop-shadow(0 0 54px rgba(120, 180, 255, 0.78));
   opacity: 0;
-  animation: lightning-flash 4.8s infinite;
+  animation: lightning-flash 5.2s infinite;
+}
+
+.weather-thunder .weather-background::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 68% 14%, rgba(255, 250, 190, 0.5), transparent 30%),
+    linear-gradient(180deg, rgba(190, 220, 255, 0.36), rgba(255, 255, 255, 0.05));
+  opacity: 0;
+  animation: thunder-sky-flash 5.2s infinite;
 }
 
 .snow-layer {
@@ -313,7 +324,9 @@ button {
 }
 
 .weather-rain .weather-background {
-  background: linear-gradient(180deg, rgba(19, 27, 39, 0.54), rgba(50, 61, 76, 0.32));
+  background:
+    linear-gradient(180deg, rgba(13, 20, 31, 0.66), rgba(44, 54, 68, 0.4)),
+    radial-gradient(circle at 78% 10%, rgba(255,255,255,0.12), transparent 24%);
 }
 
 .weather-thunder .weather-background {
@@ -327,7 +340,9 @@ button {
 }
 
 .weather-snow .weather-background {
-  background: linear-gradient(180deg, rgba(194, 211, 226, 0.2), rgba(255, 255, 255, 0));
+  background:
+    linear-gradient(180deg, rgba(39, 53, 69, 0.38), rgba(112, 130, 145, 0.24)),
+    radial-gradient(circle at 18% 16%, rgba(255,255,255,0.2), transparent 24%);
 }
 
 .app-hero {
@@ -2503,23 +2518,44 @@ textarea:focus {
 
 @keyframes rain-fall {
   0% {
-    background-position: 0 0, 0 0;
+    background-position: 7px 0, 29px 22px, 51px 44px, 73px 10px;
   }
   100% {
-    background-position: -18px 42px, -26px 56px;
+    background-position: 7px 118px, 29px 170px, 51px 176px, 73px 186px;
   }
 }
 
 @keyframes lightning-flash {
   0%,
-  78%,
-  84%,
+  66%,
+  72%,
+  76%,
   100% {
     opacity: 0;
   }
-  79%,
-  82% {
+  67%,
+  70% {
     opacity: 1;
+  }
+  74% {
+    opacity: 0.55;
+  }
+}
+
+@keyframes thunder-sky-flash {
+  0%,
+  65%,
+  73%,
+  77%,
+  100% {
+    opacity: 0;
+  }
+  66%,
+  69% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 0.45;
   }
 }
 
@@ -2738,15 +2774,36 @@ textarea:focus {
     justify-items: start;
   }
 
+  .item-card {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .item-main {
+    width: 100%;
+  }
+
+  .item-card h4,
+  .item-card p,
+  .todo-list-item label span {
+    overflow: hidden;
+    overflow-wrap: normal;
+    word-break: keep-all;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+
   .day-preview-item {
     padding: 2px 4px;
     font-size: 0.58rem;
+    text-overflow: clip;
   }
 
   .payment-badge,
   .salary-badge {
     padding: 2px 4px;
     font-size: 0.56rem;
+    text-overflow: clip;
   }
 
   .piggy-bank-panel,
