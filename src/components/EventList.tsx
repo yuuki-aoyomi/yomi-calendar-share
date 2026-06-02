@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { CalendarEvent, CalendarTag } from '../types/calendar';
 import type { CreditCardPaymentSchedule } from '../utils/creditCard';
 import type { SalaryPaymentSchedule } from '../utils/salary';
@@ -10,6 +10,8 @@ type EventListProps = {
   salarySchedules: SalaryPaymentSchedule[];
   tags: CalendarTag[];
   onEditEvent: (id: string) => void;
+  onAddTodo: (title: string, tagId?: string) => void;
+  onReorderEvents: (orderedIds: string[]) => void;
   onToggleTodo: (id: string, done: boolean) => void;
 };
 
@@ -44,19 +46,22 @@ export function EventList({
   salarySchedules,
   tags,
   onEditEvent,
+  onAddTodo,
+  onReorderEvents,
   onToggleTodo,
 }: EventListProps) {
+  const [draggingEventId, setDraggingEventId] = useState<string | null>(null);
   const eventSections = categoryOrder
     .map((category) => ({
       category,
       events: events.filter((event) => event.category === category),
     }))
-    .filter((section) => section.events.length > 0);
+    .filter((section) => section.events.length > 0 || (section.category === 'todo' && tags.length > 0));
   const todoEvents = events.filter((event) => event.category === 'todo');
   const completedTodoCount = todoEvents.filter((event) => event.done).length;
   const todoProgress = todoEvents.length > 0 ? Math.round((completedTodoCount / todoEvents.length) * 100) : 0;
 
-  if (events.length === 0 && paymentSchedules.length === 0 && salarySchedules.length === 0) {
+  if (events.length === 0 && paymentSchedules.length === 0 && salarySchedules.length === 0 && tags.length === 0) {
     return (
       <div className="empty-state">
         <h3>{selectedDate}</h3>
@@ -129,12 +134,33 @@ export function EventList({
             <TodoTagGroups
               events={section.events}
               tags={tags}
+              draggingEventId={draggingEventId}
               onEditEvent={onEditEvent}
+              onAddTodo={onAddTodo}
+              onDragStart={setDraggingEventId}
+              onDragEnd={() => setDraggingEventId(null)}
+              onDropEvent={(orderedIds) => {
+                onReorderEvents(orderedIds);
+                setDraggingEventId(null);
+              }}
               onToggleTodo={onToggleTodo}
             />
           ) : (
             section.events.map((event) => (
-              <EventCard key={event.id} event={event} tags={tags} onEditEvent={onEditEvent} />
+              <EventCard
+                key={event.id}
+                event={event}
+                events={section.events}
+                tags={tags}
+                draggingEventId={draggingEventId}
+                onEditEvent={onEditEvent}
+                onDragStart={setDraggingEventId}
+                onDragEnd={() => setDraggingEventId(null)}
+                onDropEvent={(orderedIds) => {
+                  onReorderEvents(orderedIds);
+                  setDraggingEventId(null);
+                }}
+              />
             ))
           )}
         </section>
@@ -146,25 +172,50 @@ export function EventList({
 function TodoTagGroups({
   events,
   tags,
+  draggingEventId,
   onEditEvent,
+  onAddTodo,
+  onDragStart,
+  onDragEnd,
+  onDropEvent,
   onToggleTodo,
 }: {
   events: CalendarEvent[];
   tags: CalendarTag[];
+  draggingEventId: string | null;
   onEditEvent: (id: string) => void;
+  onAddTodo: (title: string, tagId?: string) => void;
+  onDragStart: (id: string) => void;
+  onDragEnd: () => void;
+  onDropEvent: (orderedIds: string[]) => void;
   onToggleTodo: (id: string, done: boolean) => void;
 }) {
+  const [openGroupKeys, setOpenGroupKeys] = useState<Set<string>>(() => new Set(tags.length === 0 ? ['untagged'] : []));
+  const [addingGroupKey, setAddingGroupKey] = useState<string | null>(null);
+  const [todoTitle, setTodoTitle] = useState('');
   const todoGroups = useMemo(() => {
     const groups = new Map<string, { tag?: CalendarTag; events: CalendarEvent[] }>();
 
+    tags.forEach((tag) => {
+      groups.set(tag.id, { tag, events: [] });
+    });
+
     events.forEach((event) => {
       const eventTagIds = event.tagIds ?? [];
-      const tag = tags.find((item) => item.id === eventTagIds[0]);
-      const groupKey = tag?.id ?? 'untagged';
-      const group = groups.get(groupKey) ?? { tag, events: [] };
-      group.events.push(event);
-      groups.set(groupKey, group);
+      const groupTagIds = eventTagIds.length > 0 ? eventTagIds : ['untagged'];
+
+      groupTagIds.forEach((tagId) => {
+        const tag = tags.find((item) => item.id === tagId);
+        const groupKey = tag?.id ?? 'untagged';
+        const group = groups.get(groupKey) ?? { tag, events: [] };
+        group.events.push(event);
+        groups.set(groupKey, group);
+      });
     });
+
+    if (tags.length === 0 || events.some((event) => (event.tagIds ?? []).length === 0)) {
+      groups.set('untagged', groups.get('untagged') ?? { events: [] });
+    }
 
     return [...groups.entries()].map(([key, group]) => ({
       key,
@@ -174,24 +225,88 @@ function TodoTagGroups({
     }));
   }, [events, tags]);
 
+  const handleSubmitTodo = (event: React.FormEvent<HTMLFormElement>, tagId?: string) => {
+    event.preventDefault();
+    const title = todoTitle.trim();
+    if (!title) return;
+
+    onAddTodo(title, tagId);
+    setTodoTitle('');
+    setAddingGroupKey(null);
+  };
+
   return (
     <div className="todo-group-list">
       {todoGroups.map((group) => (
-        <details className="todo-tag-group" key={group.key} open={todoGroups.length === 1}>
+        <details
+          className="todo-tag-group"
+          key={group.key}
+          open={todoGroups.length === 1 || openGroupKeys.has(group.key)}
+          onToggle={(event) => {
+            const isOpen = event.currentTarget.open;
+            if (!isOpen && addingGroupKey === group.key) {
+              setAddingGroupKey(null);
+              setTodoTitle('');
+            }
+            setOpenGroupKeys((current) => {
+              const next = new Set(current);
+              if (isOpen) {
+                next.add(group.key);
+              } else {
+                next.delete(group.key);
+              }
+              return next;
+            });
+          }}
+        >
           <summary>
             <span className="todo-group-title">
               {group.tag && <i style={{ background: group.tag.color }} />}
               {group.tag ? `#${group.tag.name}` : '#未分類'}
             </span>
-            <span>{group.doneCount}/{group.events.length}</span>
+            <span className="todo-group-actions">
+              <span>{group.doneCount}/{group.events.length}</span>
+              <button
+                type="button"
+                className="todo-add-button"
+                aria-label={`${group.tag ? group.tag.name : '未分類'} のToDoを追加`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setOpenGroupKeys((current) => new Set(current).add(group.key));
+                  setAddingGroupKey((current) => current === group.key ? null : group.key);
+                  setTodoTitle('');
+                }}
+              >
+                +
+              </button>
+            </span>
           </summary>
           <div className="todo-list">
+            {addingGroupKey === group.key && (
+              <form className="todo-create-row" onSubmit={(event) => handleSubmitTodo(event, group.tag?.id)}>
+                <input
+                  value={todoTitle}
+                  onChange={(event) => setTodoTitle(event.target.value)}
+                  placeholder="ToDoを追加"
+                  autoFocus
+                />
+                <button type="submit" className="ghost-button">
+                  追加
+                </button>
+              </form>
+            )}
             {group.events.map((event) => (
               <TodoListItem
                 key={`${group.key}-${event.id}`}
                 event={event}
+                events={group.events}
                 tags={tags}
+                draggingEventId={draggingEventId}
                 onEditEvent={onEditEvent}
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
+                onDropEvent={onDropEvent}
                 onToggleTodo={onToggleTodo}
               />
             ))}
@@ -204,17 +319,54 @@ function TodoTagGroups({
 
 function TodoListItem({
   event,
+  events,
   tags,
+  draggingEventId,
   onEditEvent,
+  onDragStart,
+  onDragEnd,
+  onDropEvent,
   onToggleTodo,
 }: {
   event: CalendarEvent;
+  events: CalendarEvent[];
   tags: CalendarTag[];
+  draggingEventId: string | null;
   onEditEvent: (id: string) => void;
+  onDragStart: (id: string) => void;
+  onDragEnd: () => void;
+  onDropEvent: (orderedIds: string[]) => void;
   onToggleTodo: (id: string, done: boolean) => void;
 }) {
   return (
-    <div className={event.done ? 'todo-list-item done' : 'todo-list-item'}>
+    <div
+      className={[
+        event.done ? 'todo-list-item done' : 'todo-list-item',
+        draggingEventId === event.id ? 'dragging' : '',
+      ].join(' ')}
+      onDragOver={(dragEvent) => {
+        if (!draggingEventId || draggingEventId === event.id) return;
+        dragEvent.preventDefault();
+      }}
+      onDrop={(dragEvent) => {
+        dragEvent.preventDefault();
+        if (!draggingEventId || draggingEventId === event.id) return;
+        onDropEvent(moveEventId(events.map((item) => item.id), draggingEventId, event.id));
+      }}
+    >
+      <span
+        className="drag-handle"
+        role="button"
+        aria-label={`${event.title} を並び替え`}
+        draggable
+        onDragStart={(dragEvent) => {
+          dragEvent.dataTransfer.effectAllowed = 'move';
+          onDragStart(event.id);
+        }}
+        onDragEnd={onDragEnd}
+      >
+        ⠿
+      </span>
       <label>
         <input
           type="checkbox"
@@ -244,20 +396,55 @@ function TodoListItem({
 
 function EventCard({
   event,
+  events,
   tags,
+  draggingEventId,
   onEditEvent,
+  onDragStart,
+  onDragEnd,
+  onDropEvent,
 }: {
   event: CalendarEvent;
+  events: CalendarEvent[];
   tags: CalendarTag[];
+  draggingEventId: string | null;
   onEditEvent: (id: string) => void;
+  onDragStart: (id: string) => void;
+  onDragEnd: () => void;
+  onDropEvent: (orderedIds: string[]) => void;
 }) {
   const mainTagColor = (event.tagIds ?? [])
     .map((tagId) => tags.find((item) => item.id === tagId)?.color)
     .find((color): color is string => Boolean(color));
 
   return (
-    <article className="item-card" style={mainTagColor ? { borderLeftColor: mainTagColor } : undefined}>
+    <article
+      className={draggingEventId === event.id ? 'item-card dragging' : 'item-card'}
+      style={mainTagColor ? { borderLeftColor: mainTagColor } : undefined}
+      onDragOver={(dragEvent) => {
+        if (!draggingEventId || draggingEventId === event.id) return;
+        dragEvent.preventDefault();
+      }}
+      onDrop={(dragEvent) => {
+        dragEvent.preventDefault();
+        if (!draggingEventId || draggingEventId === event.id) return;
+        onDropEvent(moveEventId(events.map((item) => item.id), draggingEventId, event.id));
+      }}
+    >
       <div className="item-main">
+        <span
+          className="drag-handle"
+          role="button"
+          aria-label={`${event.title} を並び替え`}
+          draggable
+          onDragStart={(dragEvent) => {
+            dragEvent.dataTransfer.effectAllowed = 'move';
+            onDragStart(event.id);
+          }}
+          onDragEnd={onDragEnd}
+        >
+          ⠿
+        </span>
         <div className="event-card-labels">
           <span className={`category-pill ${event.category}`}>{categoryLabels[event.category]}</span>
           {event.recurrence && (
@@ -302,4 +489,15 @@ function EventCard({
       </div>
     </article>
   );
+}
+
+function moveEventId(eventIds: string[], sourceId: string, targetId: string): string[] {
+  const sourceIndex = eventIds.indexOf(sourceId);
+  const targetIndex = eventIds.indexOf(targetId);
+  if (sourceIndex < 0 || targetIndex < 0) return eventIds;
+
+  const next = [...eventIds];
+  const [movedId] = next.splice(sourceIndex, 1);
+  next.splice(targetIndex, 0, movedId);
+  return next;
 }

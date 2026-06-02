@@ -45,6 +45,7 @@ export type CalendarEvent = {
   startTime?: string;
   endTime?: string;
   breakMinutes?: number;
+  sortOrder?: number;
   category: EventCategory;
   memo?: string;
   tagIds: string[];

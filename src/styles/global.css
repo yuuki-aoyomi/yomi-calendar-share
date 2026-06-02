@@ -1052,6 +1052,7 @@ textarea:focus {
 
 .form-delete-zone {
   display: flex;
+  grid-column: 1 / -1;
   justify-content: flex-end;
   border-top: 1px solid var(--border);
   padding-top: 12px;
@@ -1178,17 +1179,55 @@ textarea:focus {
   border-radius: 999px;
 }
 
+.todo-group-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.todo-add-button {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--soft-bg);
+  color: var(--heading);
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.todo-add-button:hover {
+  border-color: #1fbf83;
+  color: #15845d;
+}
+
 .todo-list {
   display: grid;
   border-top: 1px solid var(--border);
 }
 
+.todo-create-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  padding: 9px 12px;
+}
+
 .todo-list-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 10px;
   align-items: center;
   padding: 9px 12px;
+}
+
+.todo-list-item .drag-handle {
+  margin: 0;
 }
 
 .todo-list-item + .todo-list-item {
@@ -1250,6 +1289,33 @@ textarea:focus {
 
 .item-main {
   min-width: 0;
+}
+
+.drag-handle {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 0 8px 8px 0;
+  background: var(--soft-bg);
+  color: var(--muted-text);
+  cursor: grab;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+  user-select: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.item-card.dragging,
+.todo-list-item.dragging {
+  opacity: 0.56;
 }
 
 .item-card h4 {
@@ -1881,6 +1947,23 @@ textarea:focus {
   gap: 8px;
 }
 
+.setting-order-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--card-bg);
+}
+
+.setting-order-control > span {
+  color: var(--muted-text);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
 .inline-color-dot {
   display: inline-block;
   width: 0.8em;
@@ -2257,12 +2340,17 @@ textarea:focus {
   }
 
   .todo-list-item {
-    grid-template-columns: 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
     align-items: stretch;
   }
 
   .todo-list-tags {
+    grid-column: 2;
     justify-content: flex-start;
+  }
+
+  .todo-list-item > .ghost-button {
+    grid-column: 2;
   }
 
   .form-actions,

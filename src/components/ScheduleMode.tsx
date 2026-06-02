@@ -4,6 +4,7 @@ import { EventList } from './EventList';
 import { DailyPhotoPanel } from './DailyPhotoPanel';
 import type { CalendarEvent, CalendarTag, CreditCardSetting, DailyPhoto, MoneyRecord, PartTimeJob } from '../types/calendar';
 import { buildCreditCardPaymentSchedules } from '../utils/creditCard';
+import { createId } from '../utils/id';
 import { getEventsForDate } from '../utils/recurrence';
 import { buildSalaryPaymentSchedules } from '../utils/salary';
 
@@ -52,6 +53,8 @@ export function ScheduleMode({
     () =>
       getEventsForDate(events, selectedDate)
         .sort((a, b) => {
+          const orderDiff = (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER);
+          if (orderDiff !== 0) return orderDiff;
           if (!a.startTime && b.startTime) return -1;
           if (a.startTime && !b.startTime) return 1;
           return (a.startTime || '').localeCompare(b.startTime || '');
@@ -101,6 +104,43 @@ export function ScheduleMode({
         onEditEvent={(id) => {
           setEditingEventId(id);
           setIsEditorOpen(true);
+        }}
+        onAddTodo={(title, tagId) => {
+          const now = new Date().toISOString();
+          const tag = tags.find((item) => item.id === tagId);
+          const nextSortOrder = Math.max(0, ...selectedEvents.map((event) => event.sortOrder ?? 0)) + 1;
+
+          onEventsChange((current) => [
+            ...current,
+            {
+              id: createId(),
+              date: selectedDate,
+              title,
+              category: 'todo',
+              sortOrder: nextSortOrder,
+              tagIds: tag ? [tag.id] : [],
+              tags: tag ? [tag.name] : [],
+              timelineItems: [],
+              done: false,
+              createdAt: now,
+              updatedAt: now,
+            },
+          ]);
+        }}
+        onReorderEvents={(orderedIds) => {
+          const now = new Date().toISOString();
+          onEventsChange((current) =>
+            current.map((event) => {
+              const nextIndex = orderedIds.indexOf(event.id);
+              if (nextIndex < 0) return event;
+
+              return {
+                ...event,
+                sortOrder: nextIndex + 1,
+                updatedAt: now,
+              };
+            }),
+          );
         }}
         onToggleTodo={(id, done) => {
           onEventsChange((current) =>

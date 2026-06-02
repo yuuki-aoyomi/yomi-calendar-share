@@ -38,6 +38,11 @@ const moveMonthKey = (monthKey: string, diff: number): string => {
 
 const lowBalanceThreshold = 10_000;
 
+const parseMoneyAmount = (value: string): number | undefined => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+};
+
 export function MoneyMode({
   selectedDate,
   currentMonthKey,
@@ -54,6 +59,8 @@ export function MoneyMode({
   const [memo, setMemo] = useState('');
   const [isCreditCard, setIsCreditCard] = useState(true);
   const [creditCardId, setCreditCardId] = useState('');
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+  const [recordAmountInputs, setRecordAmountInputs] = useState<Record<string, string>>({});
   const monthLabel = formatMonthLabel(currentMonthKey);
 
   const monthRecords = useMemo(
@@ -360,30 +367,181 @@ export function MoneyMode({
               <p>この日の収支はまだありません。</p>
             </div>
           ) : (
-            selectedRecords.map((record) => (
-              <article className="item-card compact" key={record.id}>
-                <div>
-                  <span className={`category-pill ${record.type}`}>{record.type === 'income' ? '収入' : '支出'}</span>
-                  <h4>{record.category}</h4>
-                  <p>
-                    {record.memo || 'メモなし'}
-                    {record.creditCardId
-                      ? ` / ${creditCards.find((card) => card.id === record.creditCardId)?.name ?? 'カード未登録'}`
-                      : ''}
-                  </p>
-                </div>
-                <div className="amount-block">
-                  <strong>{record.amount.toLocaleString()}円</strong>
-                  <button
-                    type="button"
-                    className="ghost-button danger"
-                    onClick={() => onRecordsChange((current) => current.filter((item) => item.id !== record.id))}
-                  >
-                    削除
-                  </button>
-                </div>
-              </article>
-            ))
+            selectedRecords.map((record) => {
+              const isEditing = editingRecordId === record.id;
+
+              return (
+                <article className="item-card" key={record.id}>
+                  <div className="item-main">
+                    <span className={`category-pill ${record.type}`}>{record.type === 'income' ? '収入' : '支出'}</span>
+                    <h4>{record.category}</h4>
+                    <p>
+                      {record.memo || 'メモなし'}
+                      {record.creditCardId
+                        ? ` / ${creditCards.find((card) => card.id === record.creditCardId)?.name ?? 'カード未登録'}`
+                        : ''}
+                    </p>
+                    {isEditing && (
+                      <div className="editable-setting-grid">
+                        <label>
+                          種類
+                          <select
+                            value={record.type}
+                            onChange={(event) =>
+                              onRecordsChange((current) =>
+                                current.map((item) =>
+                                  item.id === record.id
+                                    ? {
+                                        ...item,
+                                        type: event.target.value as MoneyRecord['type'],
+                                        isCreditCard: event.target.value === 'expense' ? item.isCreditCard : false,
+                                        creditCardId: event.target.value === 'expense' ? item.creditCardId : undefined,
+                                        updatedAt: new Date().toISOString(),
+                                      }
+                                    : item,
+                                ),
+                              )
+                            }
+                          >
+                            <option value="expense">支出</option>
+                            <option value="income">収入</option>
+                          </select>
+                        </label>
+                        <label>
+                          金額
+                          <input
+                            type="number"
+                            min="1"
+                            value={recordAmountInputs[record.id] ?? String(record.amount)}
+                            onChange={(event) => {
+                              const nextAmount = parseMoneyAmount(event.target.value);
+                              setRecordAmountInputs((current) => ({ ...current, [record.id]: event.target.value }));
+                              if (!nextAmount) return;
+
+                              onRecordsChange((current) =>
+                                current.map((item) =>
+                                  item.id === record.id
+                                    ? { ...item, amount: nextAmount, updatedAt: new Date().toISOString() }
+                                    : item,
+                                ),
+                              );
+                            }}
+                            onBlur={() => {
+                              setRecordAmountInputs((current) => {
+                                const next = { ...current };
+                                delete next[record.id];
+                                return next;
+                              });
+                            }}
+                          />
+                        </label>
+                        <label>
+                          カテゴリ
+                          <input
+                            value={record.category}
+                            onChange={(event) =>
+                              onRecordsChange((current) =>
+                                current.map((item) =>
+                                  item.id === record.id
+                                    ? { ...item, category: event.target.value, updatedAt: new Date().toISOString() }
+                                    : item,
+                                ),
+                              )
+                            }
+                          />
+                        </label>
+                        <label>
+                          メモ
+                          <textarea
+                            value={record.memo ?? ''}
+                            onChange={(event) =>
+                              onRecordsChange((current) =>
+                                current.map((item) =>
+                                  item.id === record.id
+                                    ? { ...item, memo: event.target.value || undefined, updatedAt: new Date().toISOString() }
+                                    : item,
+                                ),
+                              )
+                            }
+                          />
+                        </label>
+                        {record.type === 'expense' && (
+                          <>
+                            <label className="checkbox-label">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(record.isCreditCard)}
+                                onChange={(event) =>
+                                  onRecordsChange((current) =>
+                                    current.map((item) =>
+                                      item.id === record.id
+                                        ? {
+                                            ...item,
+                                            isCreditCard: event.target.checked,
+                                            creditCardId: event.target.checked ? item.creditCardId : undefined,
+                                            updatedAt: new Date().toISOString(),
+                                          }
+                                        : item,
+                                    ),
+                                  )
+                                }
+                              />
+                              クレジットカード
+                            </label>
+                            {record.isCreditCard && (
+                              <label>
+                                使用カード
+                                <select
+                                  value={record.creditCardId ?? ''}
+                                  onChange={(event) =>
+                                    onRecordsChange((current) =>
+                                      current.map((item) =>
+                                        item.id === record.id
+                                          ? {
+                                              ...item,
+                                              creditCardId: event.target.value || undefined,
+                                              updatedAt: new Date().toISOString(),
+                                            }
+                                          : item,
+                                      ),
+                                    )
+                                  }
+                                >
+                                  <option value="">未選択</option>
+                                  {creditCards.map((card) => (
+                                    <option key={card.id} value={card.id}>
+                                      {card.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            )}
+                          </>
+                        )}
+                        <div className="form-delete-zone">
+                          <button
+                            type="button"
+                            className="ghost-button danger"
+                            onClick={() => {
+                              onRecordsChange((current) => current.filter((item) => item.id !== record.id));
+                              setEditingRecordId(null);
+                            }}
+                          >
+                            削除
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="amount-block">
+                    <strong>{record.amount.toLocaleString()}円</strong>
+                    <button type="button" className="ghost-button" onClick={() => setEditingRecordId(isEditing ? null : record.id)}>
+                      {isEditing ? '閉じる' : '編集'}
+                    </button>
+                  </div>
+                </article>
+              );
+            })
           )}
         </div>
       </div>

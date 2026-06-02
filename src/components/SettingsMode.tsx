@@ -298,6 +298,25 @@ export function SettingsMode({
     }
   };
 
+  const handleMoveTag = (tagId: string, direction: -1 | 1) => {
+    onTagsChange((current) => {
+      const currentIndex = current.findIndex((tag) => tag.id === tagId);
+      const nextIndex = currentIndex + direction;
+      if (currentIndex < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+
+      const next = [...current];
+      [next[currentIndex], next[nextIndex]] = [next[nextIndex], next[currentIndex]];
+      return next.map((tag) =>
+        tag.id === tagId
+          ? {
+              ...tag,
+              updatedAt: new Date().toISOString(),
+            }
+          : tag,
+      );
+    });
+  };
+
   const handleUpdatePartTimeJob = (jobId: string, updates: Partial<PartTimeJob>) => {
     const job = backupData.partTimeJobs.find((item) => item.id === jobId);
 
@@ -624,7 +643,7 @@ export function SettingsMode({
           {backupData.tags.length === 0 ? (
             <p className="helper-text">タグはまだありません。</p>
           ) : (
-            backupData.tags.map((tag) => (
+            backupData.tags.map((tag, index) => (
               <div key={tag.id} className="editable-setting-item">
                 <div className="editable-setting-summary">
                   <span className="setting-list-main">
@@ -641,9 +660,6 @@ export function SettingsMode({
                       onClick={() => setEditingTagId(editingTagId === tag.id ? null : tag.id)}
                     >
                       {editingTagId === tag.id ? '閉じる' : '編集'}
-                    </button>
-                    <button type="button" className="ghost-button danger" onClick={() => handleDeleteTag(tag.id)}>
-                      削除
                     </button>
                   </div>
                 </div>
@@ -675,6 +691,32 @@ export function SettingsMode({
                         </span>
                       </div>
                     </label>
+                    <div className="setting-order-control">
+                      <span>表示順</span>
+                      <div className="setting-row-actions">
+                        <button
+                          type="button"
+                          className="ghost-button"
+                          disabled={index === 0}
+                          onClick={() => handleMoveTag(tag.id, -1)}
+                        >
+                          上へ
+                        </button>
+                        <button
+                          type="button"
+                          className="ghost-button"
+                          disabled={index === backupData.tags.length - 1}
+                          onClick={() => handleMoveTag(tag.id, 1)}
+                        >
+                          下へ
+                        </button>
+                      </div>
+                    </div>
+                    <div className="form-delete-zone">
+                      <button type="button" className="ghost-button danger" onClick={() => handleDeleteTag(tag.id)}>
+                        削除
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -830,9 +872,6 @@ function PartTimeJobList({
                 <button type="button" className="ghost-button" onClick={() => setEditingJobId(isEditing ? null : job.id)}>
                   {isEditing ? '閉じる' : '編集'}
                 </button>
-                <button type="button" className="ghost-button danger" onClick={() => onDeleteJob(job.id)}>
-                  削除
-                </button>
               </div>
             </div>
             {isEditing && (
@@ -893,6 +932,11 @@ function PartTimeJobList({
                     onChange={(event) => onUpdateJob(job.id, { paymentDay: parseRequiredDay(event.target.value) })}
                   />
                 </label>
+                <div className="form-delete-zone">
+                  <button type="button" className="ghost-button danger" onClick={() => onDeleteJob(job.id)}>
+                    削除
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -938,9 +982,6 @@ function CreditCardList({
                 <button type="button" className="ghost-button" onClick={() => setEditingCardId(isEditing ? null : card.id)}>
                   {isEditing ? '閉じる' : '編集'}
                 </button>
-                <button type="button" className="ghost-button danger" onClick={() => onDeleteCard(card.id)}>
-                  削除
-                </button>
               </div>
             </div>
             {isEditing && (
@@ -983,6 +1024,11 @@ function CreditCardList({
                     onChange={(event) => onUpdateCard(card.id, { paymentDay: parseRequiredDay(event.target.value) })}
                   />
                 </label>
+                <div className="form-delete-zone">
+                  <button type="button" className="ghost-button danger" onClick={() => onDeleteCard(card.id)}>
+                    削除
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -1004,6 +1050,7 @@ function SubscriptionList({
   onDeleteSubscription: (subscriptionId: string) => void;
 }) {
   const [editingSubscriptionId, setEditingSubscriptionId] = useState<string | null>(null);
+  const [subscriptionInputs, setSubscriptionInputs] = useState<Record<string, Partial<Record<'amount' | 'billingMonth' | 'billingDay', string>>>>({});
 
   if (subscriptions.length === 0) return <p className="helper-text">サブスクはまだ登録されていません。</p>;
 
@@ -1013,6 +1060,7 @@ function SubscriptionList({
         const isEditing = editingSubscriptionId === subscription.id;
         const creditCard = creditCards.find((card) => card.id === subscription.creditCardId);
         const billingCycle = subscription.billingCycle ?? 'monthly';
+        const inputValues = subscriptionInputs[subscription.id] ?? {};
         const billingLabel =
           billingCycle === 'yearly'
             ? `年額 / ${subscription.billingMonth ?? '?'}月${subscription.billingDay === 31 ? '末' : `${subscription.billingDay}日`}請求`
@@ -1037,13 +1085,6 @@ function SubscriptionList({
                 >
                   {isEditing ? '閉じる' : '編集'}
                 </button>
-                <button
-                  type="button"
-                  className="ghost-button danger"
-                  onClick={() => onDeleteSubscription(subscription.id)}
-                >
-                  削除
-                </button>
               </div>
             </div>
             {isEditing && (
@@ -1060,8 +1101,17 @@ function SubscriptionList({
                   <input
                     type="number"
                     min="1"
-                    value={subscription.amount}
-                    onChange={(event) => onUpdateSubscription(subscription.id, { amount: parseOptionalNumber(event.target.value) ?? 0 })}
+                    value={inputValues.amount ?? String(subscription.amount)}
+                    onChange={(event) => {
+                      const nextAmount = parseOptionalNumber(event.target.value);
+                      setSubscriptionInputs((current) => ({
+                        ...current,
+                        [subscription.id]: { ...current[subscription.id], amount: event.target.value },
+                      }));
+                      if (!nextAmount) return;
+                      onUpdateSubscription(subscription.id, { amount: nextAmount });
+                    }}
+                    onBlur={() => clearSubscriptionInput(setSubscriptionInputs, subscription.id, 'amount')}
                   />
                 </label>
                 <label>
@@ -1087,20 +1137,34 @@ function SubscriptionList({
                       type="number"
                       min="1"
                       max="12"
-                      value={subscription.billingMonth ?? 1}
-                      onChange={(event) =>
-                        onUpdateSubscription(subscription.id, {
-                          billingMonth: parseMonthInput(event.target.value) ?? 1,
-                        })
-                      }
+                      value={inputValues.billingMonth ?? String(subscription.billingMonth ?? 1)}
+                      onChange={(event) => {
+                        const nextMonth = parseMonthInput(event.target.value);
+                        setSubscriptionInputs((current) => ({
+                          ...current,
+                          [subscription.id]: { ...current[subscription.id], billingMonth: event.target.value },
+                        }));
+                        if (!nextMonth) return;
+                        onUpdateSubscription(subscription.id, { billingMonth: nextMonth });
+                      }}
+                      onBlur={() => clearSubscriptionInput(setSubscriptionInputs, subscription.id, 'billingMonth')}
                     />
                   </label>
                 )}
                 <label>
                   請求日
                   <input
-                    value={subscription.billingDay === 31 ? '末' : subscription.billingDay}
-                    onChange={(event) => onUpdateSubscription(subscription.id, { billingDay: parseRequiredDay(event.target.value) })}
+                    value={inputValues.billingDay ?? (subscription.billingDay === 31 ? '末' : String(subscription.billingDay))}
+                    onChange={(event) => {
+                      const nextDay = parseOptionalDayInput(event.target.value);
+                      setSubscriptionInputs((current) => ({
+                        ...current,
+                        [subscription.id]: { ...current[subscription.id], billingDay: event.target.value },
+                      }));
+                      if (!nextDay) return;
+                      onUpdateSubscription(subscription.id, { billingDay: nextDay });
+                    }}
+                    onBlur={() => clearSubscriptionInput(setSubscriptionInputs, subscription.id, 'billingDay')}
                   />
                 </label>
                 <label>
@@ -1141,6 +1205,15 @@ function SubscriptionList({
                   />
                   有効
                 </label>
+                <div className="form-delete-zone">
+                  <button
+                    type="button"
+                    className="ghost-button danger"
+                    onClick={() => onDeleteSubscription(subscription.id)}
+                  >
+                    削除
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -1162,7 +1235,33 @@ function parseRequiredDay(value: string): number {
   return Math.min(Math.max(parsed, 1), 31);
 }
 
+function parseOptionalDayInput(value: string): number | undefined {
+  if (value.trim() === '末') return 31;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 31 ? parsed : undefined;
+}
+
 function parseMonthInput(value: string): number | undefined {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed >= 1 && parsed <= 12 ? parsed : undefined;
+}
+
+function clearSubscriptionInput(
+  setInputs: React.Dispatch<React.SetStateAction<Record<string, Partial<Record<'amount' | 'billingMonth' | 'billingDay', string>>>>>,
+  subscriptionId: string,
+  field: 'amount' | 'billingMonth' | 'billingDay',
+) {
+  setInputs((current) => {
+    const next = { ...current };
+    const subscriptionInput = { ...(next[subscriptionId] ?? {}) };
+    delete subscriptionInput[field];
+
+    if (Object.keys(subscriptionInput).length === 0) {
+      delete next[subscriptionId];
+    } else {
+      next[subscriptionId] = subscriptionInput;
+    }
+
+    return next;
+  });
 }

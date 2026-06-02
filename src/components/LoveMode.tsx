@@ -15,6 +15,7 @@ export function LoveMode({ selectedDate, currentMonthKey, logs, onLogsChange }: 
   const [title, setTitle] = useState('');
   const [memo, setMemo] = useState('');
   const [heartCount, setHeartCount] = useState(1);
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
 
   const monthLogs = useMemo(
     () => logs.filter((log) => log.date.startsWith(currentMonthKey)),
@@ -106,22 +107,88 @@ export function LoveMode({ selectedDate, currentMonthKey, logs, onLogsChange }: 
               <p>この日のラブログはまだありません。</p>
             </div>
           ) : (
-            selectedLogs.map((log) => (
-              <article className="item-card compact love-item" key={log.id}>
-                <div>
-                  <span className="heart-count">{'♥'.repeat(log.heartCount)}</span>
-                  <h4>{log.title}</h4>
-                  {log.memo && <p>{log.memo}</p>}
-                </div>
-                <button
-                  type="button"
-                  className="ghost-button danger"
-                  onClick={() => onLogsChange((current) => current.filter((item) => item.id !== log.id))}
-                >
-                  削除
-                </button>
-              </article>
-            ))
+            selectedLogs.map((log) => {
+              const isEditing = editingLogId === log.id;
+
+              return (
+                <article className="item-card love-item" key={log.id}>
+                  <div className="item-main">
+                    <span className="heart-count">{'♥'.repeat(log.heartCount)}</span>
+                    <h4>{log.title}</h4>
+                    {log.memo && <p>{log.memo}</p>}
+                    {isEditing && (
+                      <div className="editable-setting-grid">
+                        <label>
+                          タイトル
+                          <input
+                            value={log.title}
+                            onChange={(event) =>
+                              onLogsChange((current) =>
+                                current.map((item) =>
+                                  item.id === log.id
+                                    ? { ...item, title: event.target.value, updatedAt: new Date().toISOString() }
+                                    : item,
+                                ),
+                              )
+                            }
+                          />
+                        </label>
+                        <label>
+                          ハート数
+                          <input
+                            type="number"
+                            min="1"
+                            max="10"
+                            value={log.heartCount}
+                            onChange={(event) =>
+                              onLogsChange((current) =>
+                                current.map((item) =>
+                                  item.id === log.id
+                                    ? { ...item, heartCount: Number(event.target.value), updatedAt: new Date().toISOString() }
+                                    : item,
+                                ),
+                              )
+                            }
+                          />
+                        </label>
+                        <label>
+                          メモ
+                          <textarea
+                            value={log.memo ?? ''}
+                            onChange={(event) =>
+                              onLogsChange((current) =>
+                                current.map((item) =>
+                                  item.id === log.id
+                                    ? { ...item, memo: event.target.value || undefined, updatedAt: new Date().toISOString() }
+                                    : item,
+                                ),
+                              )
+                            }
+                          />
+                        </label>
+                        <div className="form-delete-zone">
+                          <button
+                            type="button"
+                            className="ghost-button danger"
+                            onClick={() => {
+                              onLogsChange((current) => current.filter((item) => item.id !== log.id));
+                              setEditingLogId(null);
+                            }}
+                          >
+                            削除
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="item-actions">
+                    <button type="button" className="ghost-button" onClick={() => setEditingLogId(isEditing ? null : log.id)}>
+                      {isEditing ? '閉じる' : '編集'}
+                    </button>
+                  </div>
+                </article>
+              );
+            })
           )}
         </div>
       </div>

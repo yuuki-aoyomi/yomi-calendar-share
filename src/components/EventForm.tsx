@@ -221,6 +221,7 @@ export function EventForm({
         breakMinutes.trim() && Number.isInteger(parsedBreakMinutes) && parsedBreakMinutes >= 0
           ? parsedBreakMinutes
           : undefined,
+      sortOrder: editingEvent?.sortOrder,
       category,
       memo: memo.trim() || undefined,
       tagIds: selectedTagIds,
