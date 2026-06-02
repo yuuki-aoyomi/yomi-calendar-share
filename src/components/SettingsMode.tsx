@@ -65,6 +65,8 @@ export function SettingsMode({
   const [paymentDay, setPaymentDay] = useState('27');
   const [subscriptionName, setSubscriptionName] = useState('');
   const [subscriptionAmount, setSubscriptionAmount] = useState('');
+  const [subscriptionBillingCycle, setSubscriptionBillingCycle] = useState<Subscription['billingCycle']>('monthly');
+  const [subscriptionBillingMonth, setSubscriptionBillingMonth] = useState('1');
   const [subscriptionBillingDay, setSubscriptionBillingDay] = useState('1');
   const [subscriptionCategory, setSubscriptionCategory] = useState('サブスク');
   const [subscriptionCreditCardId, setSubscriptionCreditCardId] = useState('');
@@ -185,9 +187,17 @@ export function SettingsMode({
     event.preventDefault();
     const name = subscriptionName.trim();
     const amount = Number(subscriptionAmount);
+    const billingMonth = Number(subscriptionBillingMonth);
     const billingDay = parseDayInput(subscriptionBillingDay);
     const category = subscriptionCategory.trim() || 'サブスク';
-    if (!name || !Number.isFinite(amount) || amount <= 0 || !billingDay) return;
+    if (
+      !name ||
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
+      !billingDay ||
+      (subscriptionBillingCycle === 'yearly' &&
+        (!Number.isInteger(billingMonth) || billingMonth < 1 || billingMonth > 12))
+    ) return;
 
     const now = new Date().toISOString();
 
@@ -197,6 +207,8 @@ export function SettingsMode({
         id: createId(),
         name,
         amount,
+        billingCycle: subscriptionBillingCycle,
+        billingMonth: subscriptionBillingCycle === 'yearly' ? billingMonth : undefined,
         billingDay,
         creditCardId: subscriptionCreditCardId || undefined,
         category,
@@ -208,6 +220,8 @@ export function SettingsMode({
     ]);
     setSubscriptionName('');
     setSubscriptionAmount('');
+    setSubscriptionBillingCycle('monthly');
+    setSubscriptionBillingMonth('1');
     setSubscriptionBillingDay('1');
     setSubscriptionCategory('サブスク');
     setSubscriptionCreditCardId('');
@@ -499,13 +513,13 @@ export function SettingsMode({
       <section className="settings-section">
         <div>
           <h3>サブスク設定</h3>
-          <p>毎月発生する固定費を登録します。支出、カレンダー、お金モードの警告に自動で反映されます。</p>
+          <p>月額・年額の固定費を登録します。支出、カレンダー、お金モードの警告に自動で反映されます。</p>
         </div>
         <div className="settings-grid single">
           <form className="form-card settings-card" onSubmit={handleAddSubscription}>
             <div className="form-heading">
               <h3>サブスク</h3>
-              <span>毎月の固定費</span>
+              <span>固定費</span>
             </div>
             <div className="form-grid">
               <label>
@@ -517,7 +531,7 @@ export function SettingsMode({
                 />
               </label>
               <label>
-                月額
+                金額
                 <input
                   required
                   type="number"
@@ -527,6 +541,30 @@ export function SettingsMode({
                   placeholder="980"
                 />
               </label>
+              <label>
+                支払い周期
+                <select
+                  value={subscriptionBillingCycle}
+                  onChange={(event) => setSubscriptionBillingCycle(event.target.value as Subscription['billingCycle'])}
+                >
+                  <option value="monthly">月額</option>
+                  <option value="yearly">年額</option>
+                </select>
+              </label>
+              {subscriptionBillingCycle === 'yearly' && (
+                <label>
+                  請求月
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    max="12"
+                    value={subscriptionBillingMonth}
+                    onChange={(event) => setSubscriptionBillingMonth(event.target.value)}
+                    placeholder="8"
+                  />
+                </label>
+              )}
               <label>
                 請求日
                 <input
@@ -974,6 +1012,11 @@ function SubscriptionList({
       {subscriptions.map((subscription) => {
         const isEditing = editingSubscriptionId === subscription.id;
         const creditCard = creditCards.find((card) => card.id === subscription.creditCardId);
+        const billingCycle = subscription.billingCycle ?? 'monthly';
+        const billingLabel =
+          billingCycle === 'yearly'
+            ? `年額 / ${subscription.billingMonth ?? '?'}月${subscription.billingDay === 31 ? '末' : `${subscription.billingDay}日`}請求`
+            : `月額 / 請求 ${subscription.billingDay === 31 ? '末' : `${subscription.billingDay}日`}`;
 
         return (
           <div key={subscription.id} className="editable-setting-item">
@@ -981,7 +1024,7 @@ function SubscriptionList({
               <span className="setting-list-main">
                 <strong>{subscription.name}</strong>
                 <span>
-                  {subscription.category} / {subscription.amount.toLocaleString()}円 / 請求 {subscription.billingDay === 31 ? '末' : subscription.billingDay}日
+                  {subscription.category} / {subscription.amount.toLocaleString()}円 / {billingLabel}
                   {creditCard ? ` / ${creditCard.name}` : ' / カード未選択'}
                   {subscription.isActive ? '' : ' / 停止中'}
                 </span>
@@ -1013,7 +1056,7 @@ function SubscriptionList({
                   />
                 </label>
                 <label>
-                  月額
+                  金額
                   <input
                     type="number"
                     min="1"
@@ -1021,6 +1064,38 @@ function SubscriptionList({
                     onChange={(event) => onUpdateSubscription(subscription.id, { amount: parseOptionalNumber(event.target.value) ?? 0 })}
                   />
                 </label>
+                <label>
+                  支払い周期
+                  <select
+                    value={billingCycle}
+                    onChange={(event) => {
+                      const nextCycle = event.target.value as Subscription['billingCycle'];
+                      onUpdateSubscription(subscription.id, {
+                        billingCycle: nextCycle,
+                        billingMonth: nextCycle === 'yearly' ? subscription.billingMonth ?? 1 : undefined,
+                      });
+                    }}
+                  >
+                    <option value="monthly">月額</option>
+                    <option value="yearly">年額</option>
+                  </select>
+                </label>
+                {billingCycle === 'yearly' && (
+                  <label>
+                    請求月
+                    <input
+                      type="number"
+                      min="1"
+                      max="12"
+                      value={subscription.billingMonth ?? 1}
+                      onChange={(event) =>
+                        onUpdateSubscription(subscription.id, {
+                          billingMonth: parseMonthInput(event.target.value) ?? 1,
+                        })
+                      }
+                    />
+                  </label>
+                )}
                 <label>
                   請求日
                   <input
@@ -1085,4 +1160,9 @@ function parseRequiredDay(value: string): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed)) return 1;
   return Math.min(Math.max(parsed, 1), 31);
+}
+
+function parseMonthInput(value: string): number | undefined {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 12 ? parsed : undefined;
 }

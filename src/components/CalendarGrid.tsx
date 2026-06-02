@@ -42,20 +42,6 @@ type CalendarPreviewItem = {
   editable?: boolean;
 };
 
-const keepIncompleteTodoVisible = (
-  eventItems: CalendarPreviewItem[],
-  incompleteTodoItems: CalendarPreviewItem[],
-): CalendarPreviewItem[] => {
-  const visibleItems = eventItems.slice(0, 3);
-  const hiddenTodo = incompleteTodoItems.find(
-    (todoItem) => !visibleItems.some((visibleItem) => visibleItem.id === todoItem.id),
-  );
-
-  if (!hiddenTodo || visibleItems.length < 3) return visibleItems;
-
-  return [...visibleItems.slice(0, 2), hiddenTodo];
-};
-
 // 日付セルに主要な予定を表示し、押さなくても日ごとの内容を把握できるようにします。
 export function CalendarGrid({
   currentMonth,
@@ -117,22 +103,19 @@ export function CalendarGrid({
             if (a.startTime && !b.startTime) return 1;
             return (a.startTime || '').localeCompare(b.startTime || '');
           });
-          const visibleScheduleEvents = sortedDayEvents.filter((event) => event.category !== 'todo' || !event.done);
+          const visibleScheduleEvents = sortedDayEvents.filter((event) => event.category !== 'todo');
           const eventItems: CalendarPreviewItem[] = visibleScheduleEvents.map((event) => ({
               id: event.id,
               className:
-                event.category === 'todo'
-                  ? 'todo-preview'
-                  : event.category === 'diary'
+                event.category === 'diary'
                     ? 'diary-preview'
                     : 'schedule-preview',
               label: `${event.startTime ? `${event.startTime} ` : ''}${event.title}`,
               editable: true,
-              color: event.tagIds
+              color: (event.tagIds ?? [])
                 .map((tagId) => tagsById.get(tagId)?.color)
                 .find((color): color is string => Boolean(color)),
             }));
-          const incompleteTodoItems = eventItems.filter((item) => item.className === 'todo-preview');
           const moneyItems: CalendarPreviewItem[] = [
             ...dayMoneyRecords.map((record) => ({
               id: record.id,
@@ -167,7 +150,7 @@ export function CalendarGrid({
               ? moneyItems.slice(0, 3)
               : activeMode === 'love'
                 ? loveItems.slice(0, 3)
-                : keepIncompleteTodoVisible(eventItems, incompleteTodoItems);
+                : eventItems.slice(0, 3);
 
           return (
             <button

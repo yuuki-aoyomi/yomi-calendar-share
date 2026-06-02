@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { CalendarEvent, CalendarTag } from '../types/calendar';
 import type { CreditCardPaymentSchedule } from '../utils/creditCard';
 import type { SalaryPaymentSchedule } from '../utils/salary';
@@ -9,7 +10,6 @@ type EventListProps = {
   salarySchedules: SalaryPaymentSchedule[];
   tags: CalendarTag[];
   onEditEvent: (id: string) => void;
-  onDeleteEvent: (id: string) => void;
   onToggleTodo: (id: string, done: boolean) => void;
 };
 
@@ -36,7 +36,7 @@ const recurrenceLabels = {
   monthly: '毎月',
 } as const;
 
-// 選択日の予定だけを表示します。削除操作もここに閉じ込めます。
+// 選択日の予定だけを表示します。ToDo は予定カードより軽いリストとして扱います。
 export function EventList({
   selectedDate,
   events,
@@ -44,7 +44,6 @@ export function EventList({
   salarySchedules,
   tags,
   onEditEvent,
-  onDeleteEvent,
   onToggleTodo,
 }: EventListProps) {
   const eventSections = categoryOrder
@@ -126,18 +125,119 @@ export function EventList({
               <div style={{ width: `${todoProgress}%` }} />
             </div>
           )}
-          {section.events.map((event) => (
-            <EventCard
-              key={event.id}
-              event={event}
+          {section.category === 'todo' ? (
+            <TodoTagGroups
+              events={section.events}
               tags={tags}
               onEditEvent={onEditEvent}
-              onDeleteEvent={onDeleteEvent}
               onToggleTodo={onToggleTodo}
             />
-          ))}
+          ) : (
+            section.events.map((event) => (
+              <EventCard key={event.id} event={event} tags={tags} onEditEvent={onEditEvent} />
+            ))
+          )}
         </section>
       ))}
+    </div>
+  );
+}
+
+function TodoTagGroups({
+  events,
+  tags,
+  onEditEvent,
+  onToggleTodo,
+}: {
+  events: CalendarEvent[];
+  tags: CalendarTag[];
+  onEditEvent: (id: string) => void;
+  onToggleTodo: (id: string, done: boolean) => void;
+}) {
+  const todoGroups = useMemo(() => {
+    const groups = new Map<string, { tag?: CalendarTag; events: CalendarEvent[] }>();
+
+    events.forEach((event) => {
+      const eventTagIds = event.tagIds ?? [];
+      const tag = tags.find((item) => item.id === eventTagIds[0]);
+      const groupKey = tag?.id ?? 'untagged';
+      const group = groups.get(groupKey) ?? { tag, events: [] };
+      group.events.push(event);
+      groups.set(groupKey, group);
+    });
+
+    return [...groups.entries()].map(([key, group]) => ({
+      key,
+      tag: group.tag,
+      events: group.events,
+      doneCount: group.events.filter((event) => event.done).length,
+    }));
+  }, [events, tags]);
+
+  return (
+    <div className="todo-group-list">
+      {todoGroups.map((group) => (
+        <details className="todo-tag-group" key={group.key} open={todoGroups.length === 1}>
+          <summary>
+            <span className="todo-group-title">
+              {group.tag && <i style={{ background: group.tag.color }} />}
+              {group.tag ? `#${group.tag.name}` : '#未分類'}
+            </span>
+            <span>{group.doneCount}/{group.events.length}</span>
+          </summary>
+          <div className="todo-list">
+            {group.events.map((event) => (
+              <TodoListItem
+                key={`${group.key}-${event.id}`}
+                event={event}
+                tags={tags}
+                onEditEvent={onEditEvent}
+                onToggleTodo={onToggleTodo}
+              />
+            ))}
+          </div>
+        </details>
+      ))}
+    </div>
+  );
+}
+
+function TodoListItem({
+  event,
+  tags,
+  onEditEvent,
+  onToggleTodo,
+}: {
+  event: CalendarEvent;
+  tags: CalendarTag[];
+  onEditEvent: (id: string) => void;
+  onToggleTodo: (id: string, done: boolean) => void;
+}) {
+  return (
+    <div className={event.done ? 'todo-list-item done' : 'todo-list-item'}>
+      <label>
+        <input
+          type="checkbox"
+          checked={Boolean(event.done)}
+          onChange={(changeEvent) => onToggleTodo(event.id, changeEvent.target.checked)}
+        />
+        <span>{event.title}</span>
+      </label>
+      {(event.tagIds ?? []).length > 0 && (
+        <div className="todo-list-tags">
+          {(event.tagIds ?? []).map((tagId) => {
+            const tag = tags.find((item) => item.id === tagId);
+            return (
+              <span key={tagId} style={tag ? { color: tag.color } : undefined}>
+                #{tag?.name ?? tagId}
+              </span>
+            );
+          })}
+        </div>
+      )}
+      <button type="button" className="ghost-button" onClick={() => onEditEvent(event.id)}>
+        編集
+      </button>
     </div>
   );
 }
@@ -146,36 +246,19 @@ function EventCard({
   event,
   tags,
   onEditEvent,
-  onDeleteEvent,
-  onToggleTodo,
 }: {
   event: CalendarEvent;
   tags: CalendarTag[];
   onEditEvent: (id: string) => void;
-  onDeleteEvent: (id: string) => void;
-  onToggleTodo: (id: string, done: boolean) => void;
 }) {
-  const mainTagColor = event.tagIds
+  const mainTagColor = (event.tagIds ?? [])
     .map((tagId) => tags.find((item) => item.id === tagId)?.color)
     .find((color): color is string => Boolean(color));
 
   return (
-    <article
-      className={event.done ? 'item-card todo-done' : 'item-card'}
-      style={mainTagColor ? { borderLeftColor: mainTagColor } : undefined}
-    >
+    <article className="item-card" style={mainTagColor ? { borderLeftColor: mainTagColor } : undefined}>
       <div className="item-main">
         <div className="event-card-labels">
-          {event.category === 'todo' && (
-            <label className="todo-checkbox-label">
-              <input
-                type="checkbox"
-                checked={Boolean(event.done)}
-                onChange={(changeEvent) => onToggleTodo(event.id, changeEvent.target.checked)}
-              />
-              {event.done ? '完了' : '未完了'}
-            </label>
-          )}
           <span className={`category-pill ${event.category}`}>{categoryLabels[event.category]}</span>
           {event.recurrence && (
             <span className="category-pill recurrence">{recurrenceLabels[event.recurrence.frequency]}</span>
@@ -215,9 +298,6 @@ function EventCard({
       <div className="item-actions">
         <button type="button" className="ghost-button" onClick={() => onEditEvent(event.id)}>
           編集
-        </button>
-        <button type="button" className="ghost-button danger" onClick={() => onDeleteEvent(event.id)}>
-          削除
         </button>
       </div>
     </article>

@@ -17,6 +17,7 @@ type EventFormProps = {
   tags: CalendarTag[];
   onSaveEvent: (event: CalendarEvent) => void;
   onCancelEdit: () => void;
+  onDeleteEvent?: () => void;
   onTagsChange: React.Dispatch<React.SetStateAction<CalendarTag[]>>;
 };
 
@@ -64,6 +65,7 @@ export function EventForm({
   tags,
   onSaveEvent,
   onCancelEdit,
+  onDeleteEvent,
   onTagsChange,
 }: EventFormProps) {
   const [title, setTitle] = useState('');
@@ -232,7 +234,7 @@ export function EventForm({
               until: recurrenceUntil || undefined,
             },
       timelineItems,
-      done: category === 'todo' ? false : undefined,
+      done: category === 'todo' ? editingEvent?.done ?? false : undefined,
       createdAt: editingEvent?.createdAt ?? now,
       updatedAt: now,
     });
@@ -461,6 +463,13 @@ export function EventForm({
           {isEditing ? '保存する' : '追加する'}
         </button>
       </div>
+      {isEditing && onDeleteEvent && (
+        <div className="form-delete-zone">
+          <button type="button" className="ghost-button danger" onClick={onDeleteEvent}>
+            削除
+          </button>
+        </div>
+      )}
     </form>
   );
 }

@@ -234,25 +234,41 @@ function App() {
       </section>
 
       <div className="layout">
-        <Calendar
-          currentMonth={currentMonth}
-          activeMode={activeMode}
-          selectedDate={selectedDate}
-          events={events}
-          moneyRecords={moneyRecords}
-          partTimeJobs={partTimeJobs}
-          creditCards={creditCards}
-          subscriptions={subscriptions}
-          dailyPhotos={dailyPhotos}
-          loveLogs={loveLogs}
-          tags={tags}
-          onMonthChange={setCurrentMonth}
-          onSelectDate={setSelectedDate}
-          onEditEvent={(eventId) => {
-            setActiveMode('schedule');
-            setCalendarEditRequest({ eventId, requestedAt: Date.now() });
-          }}
-        />
+        <div className="calendar-column">
+          <Calendar
+            currentMonth={currentMonth}
+            activeMode={activeMode}
+            selectedDate={selectedDate}
+            events={events}
+            moneyRecords={moneyRecords}
+            partTimeJobs={partTimeJobs}
+            creditCards={creditCards}
+            subscriptions={subscriptions}
+            dailyPhotos={dailyPhotos}
+            loveLogs={loveLogs}
+            tags={tags}
+            onMonthChange={setCurrentMonth}
+            onSelectDate={setSelectedDate}
+            onEditEvent={(eventId) => {
+              setActiveMode('schedule');
+              setCalendarEditRequest({ eventId, requestedAt: Date.now() });
+            }}
+          />
+
+          <section className="calendar-panel insights-panel">
+            <CalendarInsights
+              currentMonth={currentMonth}
+              selectedDate={selectedDate}
+              events={events}
+              moneyRecords={moneyRecords}
+              partTimeJobs={partTimeJobs}
+              creditCards={creditCards}
+              subscriptions={subscriptions}
+              dailyPhotos={dailyPhotos}
+              loveLogs={loveLogs}
+            />
+          </section>
+        </div>
 
         <section className="workspace-panel">
           <ModeTabs activeMode={activeMode} onChange={setActiveMode} />
@@ -352,19 +368,6 @@ function App() {
           )}
           {isHelpOpen && <HelpModal onClose={() => setIsHelpOpen(false)} />}
 
-        </section>
-        <section className="calendar-panel insights-panel">
-          <CalendarInsights
-            currentMonth={currentMonth}
-            selectedDate={selectedDate}
-            events={events}
-            moneyRecords={moneyRecords}
-            partTimeJobs={partTimeJobs}
-            creditCards={creditCards}
-            subscriptions={subscriptions}
-            dailyPhotos={dailyPhotos}
-            loveLogs={loveLogs}
-          />
         </section>
       </div>
     </main>

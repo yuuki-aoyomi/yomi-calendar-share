@@ -160,23 +160,21 @@ h1 {
 .layout {
   display: grid;
   grid-template-columns: minmax(620px, 1.25fr) minmax(360px, 0.75fr);
+  grid-template-areas:
+    "calendar workspace";
   gap: 24px;
   align-items: start;
 }
 
-.calendar-main-panel {
-  grid-column: 1;
-  grid-row: 1;
+.calendar-column {
+  display: grid;
+  grid-area: calendar;
+  gap: 14px;
+  min-width: 0;
 }
 
 .workspace-panel {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-}
-
-.insights-panel {
-  grid-column: 1;
-  grid-row: 2;
+  grid-area: workspace;
 }
 
 .calendar-panel,
@@ -508,11 +506,6 @@ h1 {
 .salary-preview {
   background: #e7fbf1;
   color: #15845d;
-}
-
-.todo-preview {
-  background: #fff7e6;
-  color: #9a5a00;
 }
 
 .love-preview {
@@ -1057,6 +1050,13 @@ textarea:focus {
   gap: 10px;
 }
 
+.form-delete-zone {
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
 .primary-button,
 .ghost-button,
 .segmented button {
@@ -1125,6 +1125,108 @@ textarea:focus {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, #f5b400 0%, #1fbf83 100%);
+}
+
+.todo-group-list {
+  display: grid;
+  gap: 8px;
+}
+
+.todo-tag-group {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card-bg);
+}
+
+.todo-tag-group summary {
+  display: flex;
+  cursor: pointer;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  color: var(--heading);
+  font-weight: 900;
+  list-style: none;
+}
+
+.todo-tag-group summary::-webkit-details-marker {
+  display: none;
+}
+
+.todo-tag-group summary::before {
+  content: "▸";
+  color: var(--muted-text);
+}
+
+.todo-tag-group[open] summary::before {
+  content: "▾";
+}
+
+.todo-group-title {
+  display: inline-flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+}
+
+.todo-group-title i {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+}
+
+.todo-list {
+  display: grid;
+  border-top: 1px solid var(--border);
+}
+
+.todo-list-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 12px;
+}
+
+.todo-list-item + .todo-list-item {
+  border-top: 1px solid var(--border);
+}
+
+.todo-list-item label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+}
+
+.todo-list-item label span {
+  overflow-wrap: anywhere;
+}
+
+.todo-list-item input {
+  width: auto;
+  margin: 0;
+  accent-color: #1fbf83;
+}
+
+.todo-list-item.done label span {
+  color: var(--muted-text);
+  text-decoration: line-through;
+}
+
+.todo-list-tags {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  color: var(--muted-text);
+  font-size: 0.8rem;
+  font-weight: 900;
 }
 
 .item-card {
@@ -2006,6 +2108,27 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
+  .layout {
+    grid-template-areas: none;
+    gap: 14px;
+  }
+
+  .calendar-column {
+    display: contents;
+  }
+
+  .calendar-main-panel {
+    order: 1;
+  }
+
+  .workspace-panel {
+    order: 2;
+  }
+
+  .insights-panel {
+    order: 3;
+  }
+
   .summary-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -2019,6 +2142,7 @@ textarea:focus {
   .insights-panel {
     grid-column: auto;
     grid-row: auto;
+    grid-area: auto;
   }
 }
 
@@ -2130,6 +2254,15 @@ textarea:focus {
   .item-card.compact {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .todo-list-item {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .todo-list-tags {
+    justify-content: flex-start;
   }
 
   .form-actions,

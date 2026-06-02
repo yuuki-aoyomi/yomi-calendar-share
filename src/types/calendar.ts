@@ -106,6 +106,8 @@ export type Subscription = {
   id: string;
   name: string;
   amount: number;
+  billingCycle?: 'monthly' | 'yearly';
+  billingMonth?: number;
   billingDay: number;
   creditCardId?: string;
   category: string;

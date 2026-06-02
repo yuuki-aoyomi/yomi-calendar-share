@@ -34,6 +34,15 @@ const calculateBillingDate = (monthKey: string, billingDay: number): string => {
   return toDateKey(new Date(year, monthIndex, actualDay));
 };
 
+const shouldBillInMonth = (subscription: Subscription, billingMonthKey: string): boolean => {
+  if ((subscription.billingCycle ?? 'monthly') === 'monthly') return true;
+
+  const billingMonth = subscription.billingMonth;
+  if (!billingMonth) return false;
+
+  return Number(billingMonthKey.slice(5, 7)) === billingMonth;
+};
+
 export const buildSubscriptionPaymentSchedules = (
   subscriptions: Subscription[],
   monthKey: string,
@@ -44,7 +53,7 @@ export const buildSubscriptionPaymentSchedules = (
   return subscriptions
     .filter((subscription) => subscription.isActive)
     .flatMap((subscription) =>
-      billingMonthKeys.map((billingMonthKey) => {
+      billingMonthKeys.filter((billingMonthKey) => shouldBillInMonth(subscription, billingMonthKey)).map((billingMonthKey) => {
         const billingDate = calculateBillingDate(billingMonthKey, subscription.billingDay);
         const creditCard = creditCards.find((card) => card.id === subscription.creditCardId);
         const paymentDate = creditCard

@@ -102,10 +102,6 @@ export function ScheduleMode({
           setEditingEventId(id);
           setIsEditorOpen(true);
         }}
-        onDeleteEvent={(id) => {
-          setEditingEventId((current) => (current === id ? null : current));
-          onEventsChange((current) => current.filter((event) => event.id !== id));
-        }}
         onToggleTodo={(id, done) => {
           onEventsChange((current) =>
             current.map((event) =>
@@ -176,6 +172,15 @@ export function ScheduleMode({
                 setEditingEventId(null);
                 setIsEditorOpen(false);
               }}
+              onDeleteEvent={
+                editingEvent
+                  ? () => {
+                      onEventsChange((current) => current.filter((event) => event.id !== editingEvent.id));
+                      setEditingEventId(null);
+                      setIsEditorOpen(false);
+                    }
+                  : undefined
+              }
               onTagsChange={onTagsChange}
             />
           </section>
