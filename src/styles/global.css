@@ -96,6 +96,22 @@ button {
   background: linear-gradient(180deg, #111827 0%, #243653 62%, #101826 100%);
 }
 
+.app-shell.visual-mode.weather-cloudy::before {
+  background: linear-gradient(180deg, #8f98a5 0%, #bcc3ca 48%, #e4e7eb 100%);
+}
+
+.app-shell.visual-mode.weather-rain::before {
+  background: linear-gradient(180deg, #303b4c 0%, #516075 52%, #8d98a7 100%);
+}
+
+.app-shell.visual-mode.weather-thunder::before {
+  background: linear-gradient(180deg, #151a27 0%, #2b3345 50%, #5e687a 100%);
+}
+
+.app-shell.visual-mode.weather-hail::before {
+  background: linear-gradient(180deg, #667889 0%, #a9b8c4 54%, #e4eef5 100%);
+}
+
 .splash-screen {
   position: fixed;
   z-index: 90;
@@ -155,6 +171,20 @@ button {
   opacity: 0.82;
 }
 
+.weather-cloudy .weather-cloud,
+.weather-rain .weather-cloud,
+.weather-thunder .weather-cloud,
+.weather-hail .weather-cloud {
+  background: rgba(179, 187, 196, 0.82);
+  filter: drop-shadow(0 24px 30px rgba(31, 41, 55, 0.24));
+  opacity: 0.96;
+}
+
+.weather-rain .weather-cloud,
+.weather-thunder .weather-cloud {
+  background: rgba(101, 113, 130, 0.82);
+}
+
 .weather-cloud::before,
 .weather-cloud::after {
   content: "";
@@ -190,6 +220,26 @@ button {
   animation: cloud-drift 48s linear infinite 8s;
 }
 
+.weather-cloudy .cloud-a,
+.weather-rain .cloud-a,
+.weather-thunder .cloud-a {
+  top: 10vh;
+  width: 360px;
+  height: 112px;
+  animation-duration: 54s;
+}
+
+.weather-cloudy .cloud-b,
+.weather-rain .cloud-b,
+.weather-thunder .cloud-b {
+  top: 18vh;
+  width: 420px;
+  height: 120px;
+  opacity: 0.9;
+  transform: scale(0.9);
+  animation-duration: 68s;
+}
+
 .rain-layer,
 .snow-layer,
 .hail-layer {
@@ -198,15 +248,22 @@ button {
 }
 
 .rain-layer {
-  opacity: 0.55;
-  background-image: repeating-linear-gradient(
-    105deg,
-    rgba(79, 140, 255, 0.0) 0 14px,
-    rgba(79, 140, 255, 0.42) 15px 17px,
-    rgba(79, 140, 255, 0.0) 18px 30px
-  );
-  background-size: 90px 120px;
-  animation: rain-fall 0.55s linear infinite;
+  opacity: 0.78;
+  background-image:
+    repeating-linear-gradient(
+      96deg,
+      transparent 0 10px,
+      rgba(255, 255, 255, 0.58) 11px 12px,
+      transparent 13px 24px
+    ),
+    repeating-linear-gradient(
+      96deg,
+      transparent 0 18px,
+      rgba(205, 224, 242, 0.42) 19px 20px,
+      transparent 21px 38px
+    );
+  background-size: 54px 42px, 78px 56px;
+  animation: rain-fall 0.32s linear infinite;
 }
 
 .rain-layer.heavy {
@@ -238,21 +295,39 @@ button {
 }
 
 .hail-layer {
-  opacity: 0.66;
+  opacity: 0.78;
   background-image:
-    radial-gradient(circle, rgba(220, 237, 255, 0.95) 0 3px, transparent 4px),
-    radial-gradient(circle, rgba(255, 255, 255, 0.88) 0 2px, transparent 4px);
-  background-position: 0 0, 42px 56px;
-  background-size: 82px 108px;
-  animation: hail-fall 1.4s linear infinite;
+    radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.98) 0 2px, rgba(184, 220, 242, 0.9) 3px, transparent 5px),
+    radial-gradient(circle at 45% 45%, rgba(235, 249, 255, 0.96) 0 3px, rgba(139, 185, 214, 0.76) 4px, transparent 6px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.82) 0 2px, transparent 4px);
+  background-position: 0 0, 42px 56px, 22px 28px;
+  background-size: 74px 94px, 108px 132px, 58px 82px;
+  animation: hail-fall 0.95s linear infinite;
 }
 
-.weather-cloudy .weather-background,
-.weather-rain .weather-background,
-.weather-thunder .weather-background,
-.weather-snow .weather-background,
+.weather-cloudy .weather-background {
+  background:
+    linear-gradient(180deg, rgba(78, 85, 96, 0.48), rgba(180, 186, 193, 0.26)),
+    radial-gradient(circle at 20% 12%, rgba(255,255,255,0.26), transparent 28%),
+    radial-gradient(circle at 74% 22%, rgba(120,130,142,0.22), transparent 30%);
+}
+
+.weather-rain .weather-background {
+  background: linear-gradient(180deg, rgba(19, 27, 39, 0.54), rgba(50, 61, 76, 0.32));
+}
+
+.weather-thunder .weather-background {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.48), rgba(33, 40, 55, 0.46));
+}
+
 .weather-hail .weather-background {
-  background: linear-gradient(180deg, rgba(77, 91, 117, 0.22), rgba(255, 255, 255, 0));
+  background:
+    linear-gradient(180deg, rgba(67, 83, 99, 0.34), rgba(218, 232, 241, 0.2)),
+    radial-gradient(circle at 70% 12%, rgba(255,255,255,0.34), transparent 26%);
+}
+
+.weather-snow .weather-background {
+  background: linear-gradient(180deg, rgba(194, 211, 226, 0.2), rgba(255, 255, 255, 0));
 }
 
 .app-hero {
@@ -2428,10 +2503,10 @@ textarea:focus {
 
 @keyframes rain-fall {
   0% {
-    background-position: 0 0;
+    background-position: 0 0, 0 0;
   }
   100% {
-    background-position: -44px 120px;
+    background-position: -18px 42px, -26px 56px;
   }
 }
 
@@ -2459,10 +2534,10 @@ textarea:focus {
 
 @keyframes hail-fall {
   0% {
-    background-position: 0 0, 42px 56px;
+    background-position: 0 0, 42px 56px, 22px 28px;
   }
   100% {
-    background-position: -22px 108px, 20px 164px;
+    background-position: -26px 94px, 16px 188px, -6px 110px;
   }
 }
 
