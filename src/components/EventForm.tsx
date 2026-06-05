@@ -9,6 +9,7 @@ import type {
 } from '../types/calendar';
 import { createId } from '../utils/id';
 import { estimateBreakMinutes } from '../utils/salary';
+import { sortCalendarTags } from '../utils/tags';
 
 type EventFormProps = {
   selectedDate: string;
@@ -69,6 +70,7 @@ export function EventForm({
   onTagsChange,
 }: EventFormProps) {
   const [title, setTitle] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [breakMinutes, setBreakMinutes] = useState('');
@@ -84,6 +86,8 @@ export function EventForm({
   const [timelineTime, setTimelineTime] = useState('');
   const [timelineTitle, setTimelineTitle] = useState('');
   const isEditing = Boolean(editingEvent);
+  const eventStartDate = editingEvent?.date ?? selectedDate;
+  const orderedTags = sortCalendarTags(tags);
   const eventSuggestions = events
     .filter((event, index, source) => {
       if (isEditing) return false;
@@ -99,6 +103,7 @@ export function EventForm({
 
   const resetForm = () => {
     setTitle('');
+    setEndDate('');
     setStartTime('');
     setEndTime('');
     setBreakMinutes('');
@@ -119,6 +124,7 @@ export function EventForm({
     }
 
     setTitle(editingEvent.title);
+    setEndDate(editingEvent.endDate ?? '');
     setStartTime(editingEvent.startTime ?? '');
     setEndTime(editingEvent.endTime ?? '');
     setBreakMinutes(
@@ -172,6 +178,7 @@ export function EventForm({
 
   const handleApplySuggestion = (suggestion: CalendarEvent) => {
     setTitle(suggestion.title);
+    setEndDate(suggestion.endDate ?? '');
     setStartTime(suggestion.startTime ?? '');
     setEndTime(suggestion.endTime ?? '');
     setBreakMinutes(
@@ -206,14 +213,16 @@ export function EventForm({
     if (!title.trim()) return;
 
     const now = new Date().toISOString();
-    const selectedTagNames = tags
+    const selectedTagNames = orderedTags
       .filter((tag) => selectedTagIds.includes(tag.id))
       .map((tag) => tag.name);
     const parsedBreakMinutes = Number(breakMinutes);
+    const normalizedEndDate = endDate && endDate >= eventStartDate ? endDate : undefined;
 
     onSaveEvent({
       id: editingEvent?.id ?? createId(),
-      date: editingEvent?.date ?? selectedDate,
+      date: eventStartDate,
+      endDate: normalizedEndDate,
       title: title.trim(),
       startTime: startTime || undefined,
       endTime: endTime || undefined,
@@ -289,6 +298,15 @@ export function EventForm({
       )}
 
       <div className="form-grid">
+        <label>
+          終了日
+          <input
+            type="date"
+            min={eventStartDate}
+            value={endDate}
+            onChange={(event) => setEndDate(event.target.value)}
+          />
+        </label>
         <label>
           開始
           <input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} />
@@ -390,7 +408,7 @@ export function EventForm({
           <p className="helper-text">まだタグがありません。下の入力欄から作成してください。</p>
         ) : (
           <div className="tag-picker">
-            {tags.map((tag) => (
+            {orderedTags.map((tag) => (
               <span
                 key={tag.id}
                 className={selectedTagIds.includes(tag.id) ? 'tag-option active' : 'tag-option'}

@@ -705,6 +705,33 @@ h1 {
   box-shadow: 0 0 0 3px rgba(31, 191, 131, 0.18);
 }
 
+.day-cell.birthday {
+  border-color: rgba(255, 92, 147, 0.58);
+  background:
+    linear-gradient(180deg, rgba(255, 240, 246, 0.92), rgba(255, 255, 255, 0)),
+    var(--card-bg);
+}
+
+:root[data-theme="dark"] .day-cell.birthday {
+  border-color: rgba(255, 142, 180, 0.46);
+  background:
+    linear-gradient(180deg, rgba(82, 28, 52, 0.48), rgba(31, 41, 55, 0)),
+    var(--card-bg);
+}
+
+.birthday-badge {
+  position: absolute;
+  top: 37px;
+  right: 10px;
+  border-radius: 999px;
+  padding: 2px 6px;
+  background: #ff5c93;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
 .day-dots {
   display: flex;
   gap: 4px;
@@ -743,6 +770,10 @@ h1 {
   background: #7c6ee6;
 }
 
+.birthday-dot {
+  background: #ff5c93;
+}
+
 .day-preview-list {
   display: grid;
   gap: 4px;
@@ -774,9 +805,34 @@ h1 {
   color: #3568b7;
 }
 
+.schedule-preview.span-start,
+.schedule-preview.span-middle,
+.schedule-preview.span-end {
+  border-left-width: 0;
+  background: #dceaff;
+  color: #275ca7;
+}
+
+.schedule-preview.span-start {
+  border-radius: 999px 4px 4px 999px;
+}
+
+.schedule-preview.span-middle {
+  border-radius: 4px;
+}
+
+.schedule-preview.span-end {
+  border-radius: 4px 999px 999px 4px;
+}
+
 .diary-preview {
   background: #f0edff;
   color: #6552c7;
+}
+
+.birthday-preview {
+  background: #fff0f5;
+  color: #c72d65;
 }
 
 .money-preview {
@@ -1617,6 +1673,11 @@ textarea:focus {
 
 .time-text {
   font-weight: 700;
+}
+
+.date-range-text {
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 
 .category-pill,

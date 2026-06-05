@@ -13,12 +13,14 @@ export type CompressedImage = {
 
 type CompressionOptions = {
   maxBytes: number;
+  maxAllowedBytes: number;
   maxLongSide: number;
   mimeType: 'image/webp' | 'image/jpeg';
 };
 
 const defaultOptions: CompressionOptions = {
   maxBytes: 1_000_000,
+  maxAllowedBytes: 1_500_000,
   maxLongSide: 1600,
   mimeType: 'image/webp',
 };
@@ -66,7 +68,7 @@ export const compressImageFile = async (
   file: File,
   options: Partial<CompressionOptions> = {},
 ): Promise<CompressedImage> => {
-  const { maxBytes, maxLongSide, mimeType } = { ...defaultOptions, ...options };
+  const { maxBytes, maxAllowedBytes, maxLongSide, mimeType } = { ...defaultOptions, ...options };
   const image = await loadImage(file);
   const scale = Math.min(1, maxLongSide / Math.max(image.naturalWidth, image.naturalHeight));
   const width = Math.round(image.naturalWidth * scale);
@@ -108,6 +110,10 @@ export const compressImageFile = async (
   while (file.size > maxBytes && blob.size > maxBytes && quality > 0.46) {
     quality -= 0.08;
     blob = await canvasToBlob(canvas, outputMimeType, quality);
+  }
+
+  if (blob.size > maxAllowedBytes) {
+    throw new Error('画像の圧縮後サイズが1.5MBを超えたため追加できませんでした。別の画像を選ぶか、画像を小さくしてください。');
   }
 
   return {

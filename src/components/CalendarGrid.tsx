@@ -15,6 +15,7 @@ import { buildCalendarDays, getMonthKey } from '../utils/date';
 import { eventOccursOnDate } from '../utils/recurrence';
 import { buildSalaryPaymentSchedules } from '../utils/salary';
 import { buildSubscriptionPaymentSchedules } from '../utils/subscription';
+import { findMainTag, getBirthdayTagsForDate } from '../utils/tags';
 
 type CalendarGridProps = {
   currentMonth: Date;
@@ -42,6 +43,13 @@ type CalendarPreviewItem = {
   editable?: boolean;
 };
 
+const getEventSpanClass = (event: CalendarEvent, dateKey: string): string => {
+  if (!event.endDate || event.endDate <= event.date) return '';
+  if (dateKey === event.date) return ' span-start';
+  if (dateKey === event.endDate) return ' span-end';
+  return ' span-middle';
+};
+
 // 日付セルに主要な予定を表示し、押さなくても日ごとの内容を把握できるようにします。
 export function CalendarGrid({
   currentMonth,
@@ -60,7 +68,6 @@ export function CalendarGrid({
 }: CalendarGridProps) {
   const days = useMemo(() => buildCalendarDays(currentMonth), [currentMonth]);
   const currentMonthKey = getMonthKey(currentMonth);
-  const tagsById = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags]);
   const paymentSchedules = useMemo(
     () => buildCreditCardPaymentSchedules(moneyRecords, creditCards),
     [moneyRecords, creditCards],
@@ -89,6 +96,7 @@ export function CalendarGrid({
           const daySalaries = salarySchedules.filter((schedule) => schedule.paymentDate === day.date);
           const daySubscriptions = subscriptionSchedules.filter((schedule) => schedule.paymentDate === day.date);
           const dayLoveLogs = loveLogs.filter((log) => log.date === day.date);
+          const birthdayTags = getBirthdayTagsForDate(tags, day.date);
           const hasSchedule = dayEvents.some((event) => event.category !== 'diary' && event.category !== 'todo');
           const hasIncompleteTodo = dayEvents.some((event) => event.category === 'todo' && !event.done);
           const hasDiary = dayEvents.some((event) => event.category === 'diary') || dailyPhotos.some((photo) => photo.date === day.date);
@@ -104,17 +112,21 @@ export function CalendarGrid({
             return (a.startTime || '').localeCompare(b.startTime || '');
           });
           const visibleScheduleEvents = sortedDayEvents.filter((event) => event.category !== 'todo');
+          const birthdayItems: CalendarPreviewItem[] = birthdayTags.map((tag) => ({
+            id: `birthday-${tag.id}`,
+            className: 'birthday-preview',
+            label: `誕生日 ${tag.name}`,
+            color: tag.color,
+          }));
           const eventItems: CalendarPreviewItem[] = visibleScheduleEvents.map((event) => ({
               id: event.id,
               className:
                 event.category === 'diary'
                     ? 'diary-preview'
-                    : 'schedule-preview',
+                    : `schedule-preview${getEventSpanClass(event, day.date)}`,
               label: `${event.startTime ? `${event.startTime} ` : ''}${event.title}`,
               editable: true,
-              color: (event.tagIds ?? [])
-                .map((tagId) => tagsById.get(tagId)?.color)
-                .find((color): color is string => Boolean(color)),
+              color: findMainTag(event.tagIds, tags)?.color,
             }));
           const moneyItems: CalendarPreviewItem[] = [
             ...dayMoneyRecords.map((record) => ({
@@ -150,7 +162,7 @@ export function CalendarGrid({
               ? moneyItems.slice(0, 3)
               : activeMode === 'love'
                 ? loveItems.slice(0, 3)
-                : eventItems.slice(0, 3);
+                : [...birthdayItems, ...eventItems].slice(0, 3);
 
           return (
             <button
@@ -161,6 +173,7 @@ export function CalendarGrid({
                 day.isCurrentMonth ? '' : 'muted',
                 day.isToday ? 'today' : '',
                 isSelected ? 'selected' : '',
+                birthdayTags.length > 0 ? 'birthday' : '',
                 day.date.startsWith(currentMonthKey) ? '' : 'outside-month',
               ].join(' ')}
               onClick={() => onSelectDate(day.date)}
@@ -173,8 +186,14 @@ export function CalendarGrid({
                   {hasDiary && <i className="dot diary-dot" />}
                   {hasMoney && <i className="dot money-dot" />}
                   {dayLoveLogs.length > 0 && <i className="dot love-dot" />}
+                  {birthdayTags.length > 0 && <i className="dot birthday-dot" />}
                 </span>
               </span>
+              {birthdayTags.length > 0 && (
+                <span className="birthday-badge" title={birthdayTags.map((tag) => tag.name).join(' / ')}>
+                  BD
+                </span>
+              )}
               {visibleItems.length > 0 && (
                 <span className="day-preview-list">
                   {visibleItems.map((item) => (

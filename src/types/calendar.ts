@@ -17,6 +17,7 @@ export type CalendarTag = {
   name: string;
   type: CalendarTagType;
   color: string;
+  birthday?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -41,6 +42,7 @@ export type EventImageMeta = {
 export type CalendarEvent = {
   id: string;
   date: string;
+  endDate?: string;
   title: string;
   startTime?: string;
   endTime?: string;

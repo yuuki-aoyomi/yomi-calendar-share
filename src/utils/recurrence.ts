@@ -21,12 +21,19 @@ const getDaysBetween = (from: Date, to: Date): number => {
   return Math.floor((end - start) / 86_400_000);
 };
 
+const addDays = (date: Date, days: number): Date =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+
 const getMonthDiff = (from: Date, to: Date): number =>
   (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
 
-export const eventOccursOnDate = (event: CalendarEvent, dateKey: string): boolean => {
-  if (!event.recurrence) return event.date === dateKey;
+const isDateInEventRange = (event: CalendarEvent, dateKey: string): boolean => {
+  const endDate = event.endDate && event.endDate >= event.date ? event.endDate : event.date;
+  return event.date <= dateKey && dateKey <= endDate;
+};
 
+const isRecurringStartOnDate = (event: CalendarEvent, dateKey: string): boolean => {
+  if (!event.recurrence) return event.date === dateKey;
   const startDate = parseDateKey(event.date);
   const targetDate = parseDateKey(dateKey);
   if (targetDate < startDate) return false;
@@ -46,6 +53,18 @@ export const eventOccursOnDate = (event: CalendarEvent, dateKey: string): boolea
   );
 
   return monthDiff >= 0 && monthDiff % interval === 0 && targetDate.getDate() === expectedDay;
+};
+
+export const eventOccursOnDate = (event: CalendarEvent, dateKey: string): boolean => {
+  if (!event.recurrence) return isDateInEventRange(event, dateKey);
+
+  const startDate = parseDateKey(event.date);
+  const endDate = event.endDate && event.endDate >= event.date ? parseDateKey(event.endDate) : startDate;
+  const durationDays = Math.max(getDaysBetween(startDate, endDate), 0);
+  const targetDate = parseDateKey(dateKey);
+
+  return Array.from({ length: durationDays + 1 }, (_, offset) => toDateKey(addDays(targetDate, -offset)))
+    .some((candidateStartDateKey) => isRecurringStartOnDate(event, candidateStartDateKey));
 };
 
 export const getEventsForDate = (events: CalendarEvent[], dateKey: string): CalendarEvent[] =>

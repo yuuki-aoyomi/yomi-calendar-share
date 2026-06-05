@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { CalendarEvent, CalendarTag } from '../types/calendar';
 import type { CreditCardPaymentSchedule } from '../utils/creditCard';
 import type { SalaryPaymentSchedule } from '../utils/salary';
+import { findMainTag, sortCalendarTags } from '../utils/tags';
 
 type EventListProps = {
   selectedDate: string;
@@ -36,6 +37,11 @@ const compareEventStartTime = (a: CalendarEvent, b: CalendarEvent): number => {
   if (startTimeDiff !== 0) return startTimeDiff;
 
   return a.createdAt.localeCompare(b.createdAt);
+};
+
+const formatEventDateRange = (event: CalendarEvent): string | undefined => {
+  if (!event.endDate || event.endDate <= event.date) return undefined;
+  return `${event.date} - ${event.endDate}`;
 };
 
 // 選択日の予定だけを表示します。ToDo は予定カードより軽いリストとして扱います。
@@ -180,7 +186,7 @@ function TodoTagGroups({
   const todoGroups = useMemo(() => {
     const groups = new Map<string, { tag?: CalendarTag; events: CalendarEvent[] }>();
 
-    tags.forEach((tag) => {
+    sortCalendarTags(tags).forEach((tag) => {
       groups.set(tag.id, { tag, events: [] });
     });
 
@@ -363,11 +369,12 @@ function TodoListItem({
       </label>
       {(event.tagIds ?? []).length > 0 && (
         <div className="todo-list-tags">
-          {(event.tagIds ?? []).map((tagId) => {
-            const tag = tags.find((item) => item.id === tagId);
+          {sortCalendarTags(tags)
+            .filter((tag) => (event.tagIds ?? []).includes(tag.id))
+            .map((tag) => {
             return (
-              <span key={tagId} style={tag ? { color: tag.color } : undefined}>
-                #{tag?.name ?? tagId}
+              <span key={tag.id} style={{ color: tag.color }}>
+                #{tag.name}
               </span>
             );
           })}
@@ -389,9 +396,8 @@ function EventCard({
   tags: CalendarTag[];
   onEditEvent: (id: string) => void;
 }) {
-  const mainTagColor = (event.tagIds ?? [])
-    .map((tagId) => tags.find((item) => item.id === tagId)?.color)
-    .find((color): color is string => Boolean(color));
+  const mainTagColor = findMainTag(event.tagIds, tags)?.color;
+  const dateRange = formatEventDateRange(event);
 
   return (
     <article
@@ -406,6 +412,7 @@ function EventCard({
           )}
         </div>
         <h4>{event.title}</h4>
+        {dateRange && <p className="date-range-text">{dateRange}</p>}
         {(event.startTime || event.endTime) && (
           <p className="time-text">
             {event.startTime || '--:--'} - {event.endTime || '--:--'}
@@ -425,11 +432,12 @@ function EventCard({
         )}
         {(event.tagIds ?? []).length > 0 && (
           <div className="tag-row">
-            {(event.tagIds ?? []).map((tagId) => {
-              const tag = tags.find((item) => item.id === tagId);
+            {sortCalendarTags(tags)
+              .filter((tag) => (event.tagIds ?? []).includes(tag.id))
+              .map((tag) => {
               return (
-                <span key={tagId} style={tag ? { borderColor: tag.color, color: tag.color } : undefined}>
-                  #{tag?.name ?? tagId}
+                <span key={tag.id} style={{ borderColor: tag.color, color: tag.color }}>
+                  #{tag.name}
                 </span>
               );
             })}

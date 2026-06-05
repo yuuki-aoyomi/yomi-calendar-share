@@ -10,6 +10,7 @@ import type {
 import { createBackupData, downloadBackupFile, readBackupFile } from '../utils/backup';
 import { createId } from '../utils/id';
 import { formatPayrollRule } from '../utils/salary';
+import { sortCalendarTags } from '../utils/tags';
 import type { VisualWeather } from '../App';
 
 type SettingsModeProps = {
@@ -275,7 +276,10 @@ export function SettingsMode({
     onCreditCardsChange((current) => current.filter((item) => item.id !== cardId));
   };
 
-  const handleUpdateTag = (tagId: string, updates: Partial<Pick<CalendarTag, 'name' | 'type' | 'color'>>) => {
+  const handleUpdateTag = (
+    tagId: string,
+    updates: Partial<Pick<CalendarTag, 'name' | 'type' | 'color' | 'birthday'>>,
+  ) => {
     const oldTag = backupData.tags.find((tag) => tag.id === tagId);
     const nextName = updates.name?.trim();
 
@@ -309,9 +313,14 @@ export function SettingsMode({
 
   const handleMoveTag = (tagId: string, direction: -1 | 1) => {
     onTagsChange((current) => {
+      const ordered = sortCalendarTags(current);
+      const currentOrderedIndex = ordered.findIndex((tag) => tag.id === tagId);
+      const nextOrderedTag = ordered[currentOrderedIndex + direction];
+      if (!nextOrderedTag || nextOrderedTag.type !== ordered[currentOrderedIndex]?.type) return current;
+
       const currentIndex = current.findIndex((tag) => tag.id === tagId);
-      const nextIndex = currentIndex + direction;
-      if (currentIndex < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+      const nextIndex = current.findIndex((tag) => tag.id === nextOrderedTag.id);
+      if (currentIndex < 0 || nextIndex < 0) return current;
 
       const next = [...current];
       [next[currentIndex], next[nextIndex]] = [next[nextIndex], next[currentIndex]];
@@ -389,6 +398,8 @@ export function SettingsMode({
 
     return '紐づきなし';
   };
+
+  const orderedTags = sortCalendarTags(backupData.tags);
 
   return (
     <div className="mode-content">
@@ -652,7 +663,7 @@ export function SettingsMode({
           {backupData.tags.length === 0 ? (
             <p className="helper-text">タグはまだありません。</p>
           ) : (
-            backupData.tags.map((tag, index) => (
+            orderedTags.map((tag, index) => (
               <div key={tag.id} className="editable-setting-item">
                 <div className="editable-setting-summary">
                   <span className="setting-list-main">
@@ -660,7 +671,10 @@ export function SettingsMode({
                       <i className="inline-color-dot" style={{ background: tag.color }} />
                       {tag.name}
                     </strong>
-                    <span>{tag.type} / {getTagLinkLabel(tag.id)}</span>
+                    <span>
+                      {tag.type} / {getTagLinkLabel(tag.id)}
+                      {tag.type === 'person' && tag.birthday ? ` / 誕生日 ${tag.birthday.slice(5)}` : ''}
+                    </span>
                   </span>
                   <div className="setting-row-actions">
                     <button
@@ -700,13 +714,23 @@ export function SettingsMode({
                         </span>
                       </div>
                     </label>
+                    {tag.type === 'person' && (
+                      <label>
+                        誕生日
+                        <input
+                          type="date"
+                          value={tag.birthday ?? ''}
+                          onChange={(event) => handleUpdateTag(tag.id, { birthday: event.target.value || undefined })}
+                        />
+                      </label>
+                    )}
                     <div className="setting-order-control">
                       <span>表示順</span>
                       <div className="setting-row-actions">
                         <button
                           type="button"
                           className="ghost-button"
-                          disabled={index === 0}
+                          disabled={index === 0 || orderedTags[index - 1]?.type !== tag.type}
                           onClick={() => handleMoveTag(tag.id, -1)}
                         >
                           上へ
@@ -714,7 +738,7 @@ export function SettingsMode({
                         <button
                           type="button"
                           className="ghost-button"
-                          disabled={index === backupData.tags.length - 1}
+                          disabled={index === orderedTags.length - 1 || orderedTags[index + 1]?.type !== tag.type}
                           onClick={() => handleMoveTag(tag.id, 1)}
                         >
                           下へ
@@ -886,7 +910,7 @@ function PartTimeJobList({
   jobs: PartTimeJob[];
   tags: CalendarTag[];
   onUpdateJob: (jobId: string, updates: Partial<PartTimeJob>) => void;
-  onUpdateTag: (tagId: string, updates: Partial<Pick<CalendarTag, 'name' | 'type' | 'color'>>) => void;
+  onUpdateTag: (tagId: string, updates: Partial<Pick<CalendarTag, 'name' | 'type' | 'color' | 'birthday'>>) => void;
   onDeleteJob: (jobId: string) => void;
 }) {
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
@@ -994,7 +1018,7 @@ function CreditCardList({
   cards: CreditCardSetting[];
   tags: CalendarTag[];
   onUpdateCard: (cardId: string, updates: Partial<CreditCardSetting>) => void;
-  onUpdateTag: (tagId: string, updates: Partial<Pick<CalendarTag, 'name' | 'type' | 'color'>>) => void;
+  onUpdateTag: (tagId: string, updates: Partial<Pick<CalendarTag, 'name' | 'type' | 'color' | 'birthday'>>) => void;
   onDeleteCard: (cardId: string) => void;
 }) {
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
