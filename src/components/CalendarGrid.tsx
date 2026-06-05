@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 import type {
   CalendarEvent,
   CalendarMode,
@@ -36,6 +36,7 @@ type CalendarPreviewItem = {
   id: string;
   className: string;
   label: string;
+  ariaLabel?: string;
   color?: string;
   editable?: boolean;
 };
@@ -45,6 +46,12 @@ const getEventSpanClass = (event: CalendarEvent, dateKey: string): string => {
   if (dateKey === event.date) return ' span-start';
   if (dateKey === event.endDate) return ' span-end';
   return ' span-middle';
+};
+
+const getPreviewItemStyle = (item: CalendarPreviewItem): CSSProperties | undefined => {
+  if (!item.color) return undefined;
+  if (item.className.includes('span-')) return { '--event-color': item.color } as CSSProperties;
+  return { borderLeftColor: item.color };
 };
 
 // 日付セルに主要な予定を表示し、押さなくても日ごとの内容を把握できるようにします。
@@ -105,7 +112,7 @@ export function CalendarGrid({
           const birthdayItems: CalendarPreviewItem[] = birthdayTags.map((tag) => ({
             id: `birthday-${tag.id}`,
             className: 'birthday-preview',
-            label: `誕生日 ${tag.name}`,
+            label: `${tag.name}の誕生日！`,
             color: tag.color,
           }));
           const eventItems: CalendarPreviewItem[] = visibleScheduleEvents.map((event) => ({
@@ -114,7 +121,11 @@ export function CalendarGrid({
                 event.category === 'diary'
                     ? 'diary-preview'
                     : `schedule-preview${getEventSpanClass(event, day.date)}`,
-              label: `${event.startTime ? `${event.startTime} ` : ''}${event.title}`,
+              label:
+                event.endDate && event.endDate > event.date && day.date !== event.date
+                  ? '\u00a0'
+                  : `${event.startTime ? `${event.startTime} ` : ''}${event.title}`,
+              ariaLabel: event.title,
               editable: true,
               color: findMainTag(event.tagIds, tags)?.color,
             }));
@@ -172,18 +183,15 @@ export function CalendarGrid({
                   {birthdayTags.length > 0 && <i className="dot birthday-dot" />}
                 </span>
               </span>
-              {birthdayTags.length > 0 && (
-                <span className="birthday-badge" title={birthdayTags.map((tag) => tag.name).join(' / ')}>
-                  BD
-                </span>
-              )}
               {visibleItems.length > 0 && (
                 <span className="day-preview-list">
                   {visibleItems.map((item) => (
                     <span
                       key={item.id}
                       className={`day-preview-item ${item.className}${item.editable ? ' editable' : ''}`}
-                      style={item.color ? { borderLeftColor: item.color } : undefined}
+                      style={getPreviewItemStyle(item)}
+                      title={item.label.trim() ? item.label : undefined}
+                      aria-label={item.ariaLabel}
                       role={item.editable ? 'button' : undefined}
                       tabIndex={item.editable ? 0 : undefined}
                       onClick={(event) => {

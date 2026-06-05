@@ -722,19 +722,6 @@ h1 {
     var(--card-bg);
 }
 
-.birthday-badge {
-  position: absolute;
-  top: 37px;
-  right: 10px;
-  border-radius: 999px;
-  padding: 2px 6px;
-  background: #ff5c93;
-  color: #fff;
-  font-size: 0.62rem;
-  font-weight: 900;
-  line-height: 1.2;
-}
-
 .day-dots {
   display: flex;
   gap: 4px;
@@ -816,8 +803,9 @@ h1 {
 .schedule-preview.span-middle,
 .schedule-preview.span-end {
   border-left-width: 0;
-  background: #dceaff;
-  color: #275ca7;
+  background: var(--event-color, #4f8cff);
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(22, 32, 51, 0.22);
 }
 
 .schedule-preview.span-start {
@@ -838,8 +826,18 @@ h1 {
 }
 
 .birthday-preview {
-  background: #fff0f5;
-  color: #c72d65;
+  background: #ffe4ef;
+  color: #a5164c;
+}
+
+.diary-preview,
+.birthday-preview,
+.money-preview,
+.salary-preview,
+.love-preview {
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .money-preview {
@@ -1730,6 +1728,11 @@ textarea:focus {
   color: #15845d;
 }
 
+.category-pill.birthday {
+  background: #ffe4ef;
+  color: #a5164c;
+}
+
 .category-pill.recurrence {
   margin-left: 6px;
   background: #f0edff;
@@ -1773,12 +1776,20 @@ textarea:focus {
   background: #f1fff8;
 }
 
+.birthday-event-card {
+  background: #fff6fa;
+}
+
 :root[data-theme="dark"] .payment-event-card {
   background: #332715;
 }
 
 :root[data-theme="dark"] .salary-event-card {
   background: #123b2d;
+}
+
+:root[data-theme="dark"] .birthday-event-card {
+  background: #321827;
 }
 
 .event-timeline {
@@ -2013,6 +2024,54 @@ textarea:focus {
   background: #fffaf0;
 }
 
+.birthday-panel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  border: 1px solid rgba(255, 92, 147, 0.28);
+  border-radius: 18px;
+  padding: 16px;
+  background: #fff6fa;
+  box-shadow: var(--shadow);
+}
+
+.birthday-panel-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 16px;
+  background: #ff5c93;
+  color: #fff;
+  font-weight: 900;
+}
+
+.birthday-panel-main {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.birthday-panel-main span {
+  color: #a5164c;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.birthday-panel-main strong {
+  min-width: 0;
+  color: #7f123d;
+  font-size: 1.15rem;
+  overflow-wrap: anywhere;
+}
+
+.birthday-panel-main p {
+  margin: 0;
+  color: #9c2957;
+  line-height: 1.6;
+}
+
 .money-warning-panel {
   display: grid;
   gap: 6px;
@@ -2035,6 +2094,16 @@ textarea:focus {
 
 :root[data-theme="dark"] .money-warning-panel {
   background: #3a1c2b;
+}
+
+:root[data-theme="dark"] .birthday-panel {
+  background: #321827;
+}
+
+:root[data-theme="dark"] .birthday-panel-main span,
+:root[data-theme="dark"] .birthday-panel-main strong,
+:root[data-theme="dark"] .birthday-panel-main p {
+  color: #ffd6e5;
 }
 
 .salary-panel {
@@ -2879,6 +2948,7 @@ textarea:focus {
   }
 
   .piggy-bank-panel,
+  .birthday-panel,
   .heart-meter {
     grid-template-columns: 1fr;
   }

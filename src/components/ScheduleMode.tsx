@@ -7,6 +7,7 @@ import { buildCreditCardPaymentSchedules } from '../utils/creditCard';
 import { createId } from '../utils/id';
 import { getEventsForDate } from '../utils/recurrence';
 import { buildSalaryPaymentSchedules } from '../utils/salary';
+import { getBirthdayTagsForDate } from '../utils/tags';
 
 type ScheduleModeProps = {
   calendarId: string;
@@ -22,6 +23,7 @@ type ScheduleModeProps = {
   onDailyPhotosChange: React.Dispatch<React.SetStateAction<DailyPhoto[]>>;
   onTagsChange: React.Dispatch<React.SetStateAction<CalendarTag[]>>;
   editRequest: { eventId: string; requestedAt: number } | null;
+  onEditRequestHandled: () => void;
 };
 
 export function ScheduleMode({
@@ -38,6 +40,7 @@ export function ScheduleMode({
   onDailyPhotosChange,
   onTagsChange,
   editRequest,
+  onEditRequestHandled,
 }: ScheduleModeProps) {
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -48,7 +51,8 @@ export function ScheduleMode({
 
     setEditingEventId(editRequest.eventId);
     setIsEditorOpen(true);
-  }, [editRequest]);
+    onEditRequestHandled();
+  }, [editRequest, onEditRequestHandled]);
   const selectedEvents = useMemo(
     () =>
       getEventsForDate(events, selectedDate).sort((a, b) => {
@@ -85,6 +89,7 @@ export function ScheduleMode({
       ),
     [events, partTimeJobs, selectedDate],
   );
+  const birthdayTags = useMemo(() => getBirthdayTagsForDate(tags, selectedDate), [tags, selectedDate]);
 
   return (
     <div className="mode-content">
@@ -104,6 +109,19 @@ export function ScheduleMode({
           予定を追加
         </button>
       </div>
+
+      {birthdayTags.length > 0 && (
+        <section className="birthday-panel">
+          <div className="birthday-panel-icon" aria-hidden="true">
+            祝
+          </div>
+          <div className="birthday-panel-main">
+            <span>{selectedDate.slice(5)} の誕生日</span>
+            <strong>{birthdayTags.map((tag) => `${tag.name}の誕生日！`).join(' / ')}</strong>
+            <p>大事な日としてカレンダーと予定タブで強調しています。</p>
+          </div>
+        </section>
+      )}
 
       <EventList
         selectedDate={selectedDate}

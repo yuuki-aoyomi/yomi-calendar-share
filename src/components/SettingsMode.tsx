@@ -3,6 +3,7 @@ import type {
   AppBackupData,
   CalendarEvent,
   CalendarTag,
+  CalendarTagType,
   CreditCardSetting,
   PartTimeJob,
   Subscription,
@@ -41,6 +42,20 @@ const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
   { id: 'tags', label: 'タグ' },
   { id: 'data', label: 'データ' },
 ];
+
+const tagTypeOptions: Array<{ value: CalendarTagType; label: string }> = [
+  { value: 'person', label: 'User / 人' },
+  { value: 'work', label: 'バイト' },
+  { value: 'credit-card', label: 'クレカ' },
+  { value: 'custom', label: 'その他' },
+];
+
+const tagColors: Record<CalendarTagType, string> = {
+  person: '#4f8cff',
+  work: '#1fbf83',
+  'credit-card': '#f5b400',
+  custom: '#7c6ee6',
+};
 
 export function SettingsMode({
   theme,
@@ -81,6 +96,12 @@ export function SettingsMode({
   const [subscriptionCategory, setSubscriptionCategory] = useState('サブスク');
   const [subscriptionCreditCardId, setSubscriptionCreditCardId] = useState('');
   const [subscriptionMemo, setSubscriptionMemo] = useState('');
+  const [tagName, setTagName] = useState('');
+  const [tagType, setTagType] = useState<CalendarTagType>('person');
+  const [tagColor, setTagColor] = useState(tagColors.person);
+  const [tagBirthday, setTagBirthday] = useState('');
+  const [tagMessage, setTagMessage] = useState('');
+  const [tagError, setTagError] = useState('');
 
   const parseDayInput = (value: string): number | undefined => {
     const normalized = value.trim();
@@ -236,6 +257,40 @@ export function SettingsMode({
     setSubscriptionCategory('サブスク');
     setSubscriptionCreditCardId('');
     setSubscriptionMemo('');
+  };
+
+  const handleAddTag = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = tagName.trim();
+    if (!name) return;
+
+    const duplicatedTag = backupData.tags.find((tag) => tag.name === name && tag.type === tagType);
+    if (duplicatedTag) {
+      setEditingTagId(duplicatedTag.id);
+      setTagError('同じ名前と種類のタグが既にあります。既存タグを開きました。');
+      setTagMessage('');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const tag: CalendarTag = {
+      id: createId(),
+      name,
+      type: tagType,
+      color: tagColor,
+      birthday: tagType === 'person' && tagBirthday ? tagBirthday : undefined,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    onTagsChange((current) => [...current, tag]);
+    setEditingTagId(tag.id);
+    setTagName('');
+    setTagType('person');
+    setTagColor(tagColors.person);
+    setTagBirthday('');
+    setTagMessage('タグを追加しました。');
+    setTagError('');
   };
 
   const handleDeleteTag = (tagId: string) => {
@@ -659,6 +714,46 @@ export function SettingsMode({
           <h3>タグ管理</h3>
           <p>タグを削除すると、そのタグは予定から外れます。バイト先やクレカに紐づくタグの場合、対応する設定も一緒に削除されます。</p>
         </div>
+        <form className="form-card settings-card" onSubmit={handleAddTag}>
+          <div className="form-heading">
+            <h3>タグを追加</h3>
+            <span>予定の分類用</span>
+          </div>
+          <div className="tag-create-row">
+            <select
+              value={tagType}
+              onChange={(event) => {
+                const nextType = event.target.value as CalendarTagType;
+                setTagType(nextType);
+                setTagColor(tagColors[nextType]);
+                if (nextType !== 'person') setTagBirthday('');
+              }}
+            >
+              {tagTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <div className="color-input-row">
+              <input type="color" value={tagColor} aria-label="タグの色" onChange={(event) => setTagColor(event.target.value)} />
+              <span className="color-preview-chip">
+                <i style={{ background: tagColor }} />
+                {tagColor}
+              </span>
+            </div>
+            <input value={tagName} onChange={(event) => setTagName(event.target.value)} placeholder="例: UserA / 勉強 / 通院" />
+            {tagType === 'person' && (
+              <input type="date" value={tagBirthday} aria-label="誕生日" onChange={(event) => setTagBirthday(event.target.value)} />
+            )}
+            <button type="submit" className="ghost-button">
+              追加
+            </button>
+          </div>
+          <p className="helper-text">バイト先やクレカの計算用設定は、それぞれの設定タブで作ると連携情報も一緒に登録されます。</p>
+          {tagMessage && <p className="success-text">{tagMessage}</p>}
+          {tagError && <p className="error-text">{tagError}</p>}
+        </form>
         <div className="tag-management-list">
           {backupData.tags.length === 0 ? (
             <p className="helper-text">タグはまだありません。</p>
@@ -836,12 +931,13 @@ export function SettingsMode({
       <section className="settings-section">
         <div>
           <h3>画像保存ポリシー</h3>
-          <p>1MB以下の画像は画質圧縮せず、必要な場合だけ比率を保ってリサイズします。1MBを超える画像だけ軽量化します。</p>
+          <p>1MB以下を目標に軽量化し、圧縮後1.5MB以下なら追加できます。圧縮前のサイズだけでは弾きません。</p>
         </div>
         <div className="settings-note-grid">
           <NoteItem label="目標サイズ" value="約1MB" />
+          <NoteItem label="許容上限" value="1.5MB" />
           <NoteItem label="最大長辺" value="1600px" />
-          <NoteItem label="圧縮対象" value="1MB超のみ" />
+          <NoteItem label="判定対象" value="圧縮後サイズ" />
         </div>
       </section>
 

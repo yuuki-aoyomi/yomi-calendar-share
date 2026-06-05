@@ -332,6 +332,7 @@ function App() {
               onDailyPhotosChange={setDailyPhotos}
               onTagsChange={setTags}
               editRequest={calendarEditRequest}
+              onEditRequestHandled={() => setCalendarEditRequest(null)}
             />
           )}
 
