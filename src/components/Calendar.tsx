@@ -53,7 +53,6 @@ export function Calendar(props: CalendarProps) {
         moneyRecords={props.moneyRecords}
         partTimeJobs={props.partTimeJobs}
         creditCards={props.creditCards}
-        subscriptions={props.subscriptions}
         dailyPhotos={props.dailyPhotos}
         loveLogs={props.loveLogs}
         tags={props.tags}

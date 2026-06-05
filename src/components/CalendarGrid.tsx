@@ -8,13 +8,11 @@ import type {
   LoveLog,
   MoneyRecord,
   PartTimeJob,
-  Subscription,
 } from '../types/calendar';
 import { buildCreditCardPaymentSchedules } from '../utils/creditCard';
 import { buildCalendarDays, getMonthKey } from '../utils/date';
 import { eventOccursOnDate } from '../utils/recurrence';
 import { buildSalaryPaymentSchedules } from '../utils/salary';
-import { buildSubscriptionPaymentSchedules } from '../utils/subscription';
 import { findMainTag, getBirthdayTagsForDate } from '../utils/tags';
 
 type CalendarGridProps = {
@@ -25,7 +23,6 @@ type CalendarGridProps = {
   moneyRecords: MoneyRecord[];
   partTimeJobs: PartTimeJob[];
   creditCards: CreditCardSetting[];
-  subscriptions: Subscription[];
   dailyPhotos: DailyPhoto[];
   loveLogs: LoveLog[];
   tags: CalendarTag[];
@@ -59,7 +56,6 @@ export function CalendarGrid({
   moneyRecords,
   partTimeJobs,
   creditCards,
-  subscriptions,
   dailyPhotos,
   loveLogs,
   tags,
@@ -76,10 +72,6 @@ export function CalendarGrid({
     () => buildSalaryPaymentSchedules(events, partTimeJobs, currentMonthKey),
     [events, partTimeJobs, currentMonthKey],
   );
-  const subscriptionSchedules = useMemo(
-    () => buildSubscriptionPaymentSchedules(subscriptions, currentMonthKey, creditCards),
-    [subscriptions, currentMonthKey, creditCards],
-  );
 
   return (
     <div className="calendar-grid-wrap">
@@ -94,7 +86,6 @@ export function CalendarGrid({
           const dayMoneyRecords = moneyRecords.filter((record) => record.date === day.date);
           const dayPayments = paymentSchedules.filter((schedule) => schedule.paymentDate === day.date);
           const daySalaries = salarySchedules.filter((schedule) => schedule.paymentDate === day.date);
-          const daySubscriptions = subscriptionSchedules.filter((schedule) => schedule.paymentDate === day.date);
           const dayLoveLogs = loveLogs.filter((log) => log.date === day.date);
           const birthdayTags = getBirthdayTagsForDate(tags, day.date);
           const hasSchedule = dayEvents.some((event) => event.category !== 'diary' && event.category !== 'todo');
@@ -103,8 +94,7 @@ export function CalendarGrid({
           const hasMoney =
             dayMoneyRecords.length > 0 ||
             dayPayments.length > 0 ||
-            daySalaries.length > 0 ||
-            daySubscriptions.length > 0;
+            daySalaries.length > 0;
           const isSelected = day.date === selectedDate;
           const sortedDayEvents = [...dayEvents].sort((a, b) => {
             if (!a.startTime && b.startTime) return -1;
@@ -138,13 +128,6 @@ export function CalendarGrid({
               id: schedule.id,
               className: 'money-preview',
               label: `-${schedule.amount.toLocaleString()}円`,
-            })),
-            ...daySubscriptions.map((schedule) => ({
-              id: schedule.id,
-              className: 'money-preview',
-              label: schedule.creditCardName
-                ? `サブスク(${schedule.creditCardName}) -${schedule.amount.toLocaleString()}円`
-                : `サブスク -${schedule.amount.toLocaleString()}円`,
             })),
             ...daySalaries.map((schedule) => ({
               id: schedule.id,

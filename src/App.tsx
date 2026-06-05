@@ -108,6 +108,15 @@ function App() {
   const [remoteLoadError, setRemoteLoadError] = useState('');
   const lastSavedRemoteSnapshot = useRef('');
 
+  const handleSelectDate = (dateKey: string) => {
+    setSelectedDate(dateKey);
+
+    if (dateKey.slice(0, 7) !== currentMonthKey) {
+      const [year, month] = dateKey.split('-').map(Number);
+      setCurrentMonth(new Date(year, month - 1, 1));
+    }
+  };
+
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
@@ -283,7 +292,7 @@ function App() {
             loveLogs={loveLogs}
             tags={tags}
             onMonthChange={setCurrentMonth}
-            onSelectDate={setSelectedDate}
+            onSelectDate={handleSelectDate}
             onEditEvent={(eventId) => {
               setActiveMode('schedule');
               setCalendarEditRequest({ eventId, requestedAt: Date.now() });
