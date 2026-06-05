@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { shouldUseRemoteApi, uploadDailyPhoto, withReadToken } from '../api/calendarApi';
 import type { DailyPhoto, EventImageMeta } from '../types/calendar';
-import { compressImageFile, formatBytes } from '../utils/imageCompression';
+import { compressImageFile, formatBytes, ImageCompressionSizeError, type CompressedImage } from '../utils/imageCompression';
 import { createId } from '../utils/id';
 
 type DailyPhotoPanelProps = {
@@ -12,6 +12,17 @@ type DailyPhotoPanelProps = {
   onPhotosChange: React.Dispatch<React.SetStateAction<DailyPhoto[]>>;
 };
 
+const toImageMeta = (compressedImage: CompressedImage): EventImageMeta => ({
+  fileName: compressedImage.fileName,
+  originalSize: compressedImage.originalSize,
+  compressedSize: compressedImage.compressedSize,
+  width: compressedImage.width,
+  height: compressedImage.height,
+  mimeType: compressedImage.mimeType,
+  resized: compressedImage.resized,
+  compressed: compressedImage.compressed,
+});
+
 export function DailyPhotoPanel({ calendarId, writeToken, selectedDate, photos, onPhotosChange }: DailyPhotoPanelProps) {
   const [memo, setMemo] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -21,7 +32,7 @@ export function DailyPhotoPanel({ calendarId, writeToken, selectedDate, photos, 
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
   const selectedPhotos = photos.filter((photo) => photo.date === selectedDate);
-  const canCancel = Boolean(imageUrl || memo.trim() || error);
+  const canCancel = Boolean(imageUrl || imageMeta || memo.trim() || error);
 
   const reset = () => {
     setMemo('');
@@ -37,22 +48,19 @@ export function DailyPhotoPanel({ calendarId, writeToken, selectedDate, photos, 
 
     setIsCompressing(true);
     setError('');
+    setImageUrl('');
+    setImageBlob(undefined);
+    setImageMeta(undefined);
 
     try {
       const compressedImage = await compressImageFile(file);
       setImageUrl(compressedImage.dataUrl);
       setImageBlob(compressedImage.blob);
-      setImageMeta({
-        fileName: compressedImage.fileName,
-        originalSize: compressedImage.originalSize,
-        compressedSize: compressedImage.compressedSize,
-        width: compressedImage.width,
-        height: compressedImage.height,
-        mimeType: compressedImage.mimeType,
-        resized: compressedImage.resized,
-        compressed: compressedImage.compressed,
-      });
+      setImageMeta(toImageMeta(compressedImage));
     } catch (photoError) {
+      if (photoError instanceof ImageCompressionSizeError) {
+        setImageMeta(toImageMeta(photoError.compressedImage));
+      }
       setError(photoError instanceof Error ? photoError.message : '画像の読み込みに失敗しました。');
     } finally {
       setIsCompressing(false);
@@ -129,17 +137,15 @@ export function DailyPhotoPanel({ calendarId, writeToken, selectedDate, photos, 
         {isCompressing && <p className="helper-text">画像を軽量化しています...</p>}
         {isUploading && <p className="helper-text">画像をアップロードしています...</p>}
         {error && <p className="error-text">{error}</p>}
-        {imageUrl && (
+        {imageMeta && (
           <figure className="image-preview-card">
-            <img src={imageUrl} alt="追加予定の日別写真" />
-            {imageMeta && (
-              <figcaption>
-                {imageMeta.fileName} / {imageMeta.width}x{imageMeta.height} / {formatBytes(imageMeta.originalSize)} →{' '}
-                {formatBytes(imageMeta.compressedSize)}
-                {!imageMeta.compressed && ' / 画質圧縮なし'}
-                {imageMeta.resized && ' / 比率維持リサイズ'}
-              </figcaption>
-            )}
+            {imageUrl && <img src={imageUrl} alt="追加予定の日別写真" />}
+            <figcaption>
+              {imageMeta.fileName} / {imageMeta.width}x{imageMeta.height} / 圧縮前 {formatBytes(imageMeta.originalSize)} → 圧縮後{' '}
+              {formatBytes(imageMeta.compressedSize)}
+              {!imageMeta.compressed && ' / 画質圧縮なし'}
+              {imageMeta.resized && ' / 比率維持リサイズ'}
+            </figcaption>
           </figure>
         )}
         <div className="form-actions">

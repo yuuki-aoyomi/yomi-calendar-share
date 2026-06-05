@@ -11,6 +11,16 @@ export type CompressedImage = {
   compressed: boolean;
 };
 
+export class ImageCompressionSizeError extends Error {
+  compressedImage: CompressedImage;
+
+  constructor(message: string, compressedImage: CompressedImage) {
+    super(message);
+    this.name = 'ImageCompressionSizeError';
+    this.compressedImage = compressedImage;
+  }
+}
+
 type CompressionOptions = {
   maxBytes: number;
   maxAllowedBytes: number;
@@ -20,7 +30,7 @@ type CompressionOptions = {
 
 const defaultOptions: CompressionOptions = {
   maxBytes: 1_000_000,
-  maxAllowedBytes: 1_500_000,
+  maxAllowedBytes: 2_000_000,
   maxLongSide: 1600,
   mimeType: 'image/webp',
 };
@@ -112,22 +122,30 @@ export const compressImageFile = async (
     blob = await canvasToBlob(canvas, outputMimeType, quality);
   }
 
-  if (blob.size > maxAllowedBytes) {
-    throw new Error('画像の圧縮後サイズが1.5MBを超えたため追加できませんでした。別の画像を選ぶか、画像を小さくしてください。');
-  }
-
-  return {
-    dataUrl: await blobToDataUrl(blob),
-    blob,
+  const shouldKeepOriginal = file.size <= maxAllowedBytes && blob.size > file.size;
+  const resultBlob = shouldKeepOriginal ? file : blob;
+  const resultDataUrl = shouldKeepOriginal ? await fileToDataUrl(file) : await blobToDataUrl(blob);
+  const compressedImage = {
+    dataUrl: resultDataUrl,
+    blob: resultBlob,
     fileName: file.name,
     originalSize: file.size,
-    compressedSize: blob.size,
-    width,
-    height,
-    mimeType: blob.type || outputMimeType,
-    resized: needsResize,
-    compressed: file.size > maxBytes,
+    compressedSize: resultBlob.size,
+    width: shouldKeepOriginal ? image.naturalWidth : width,
+    height: shouldKeepOriginal ? image.naturalHeight : height,
+    mimeType: resultBlob.type || outputMimeType,
+    resized: shouldKeepOriginal ? false : needsResize,
+    compressed: !shouldKeepOriginal && file.size > maxBytes,
   };
+
+  if (compressedImage.compressedSize > maxAllowedBytes) {
+    throw new ImageCompressionSizeError(
+      '画像の圧縮後サイズが2MBを超えたため追加できませんでした。別の画像を選ぶか、画像を小さくしてください。',
+      compressedImage,
+    );
+  }
+
+  return compressedImage;
 };
 
 export const formatBytes = (bytes: number): string => {

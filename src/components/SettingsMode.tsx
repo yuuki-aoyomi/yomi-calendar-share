@@ -931,11 +931,11 @@ export function SettingsMode({
       <section className="settings-section">
         <div>
           <h3>画像保存ポリシー</h3>
-          <p>1MB以下を目標に軽量化し、圧縮後1.5MB以下なら追加できます。圧縮前のサイズだけでは弾きません。</p>
+          <p>1MB以下を目標に軽量化し、圧縮後2MB以下なら追加できます。圧縮前のサイズだけでは弾きません。</p>
         </div>
         <div className="settings-note-grid">
           <NoteItem label="目標サイズ" value="約1MB" />
-          <NoteItem label="許容上限" value="1.5MB" />
+          <NoteItem label="許容上限" value="2MB" />
           <NoteItem label="最大長辺" value="1600px" />
           <NoteItem label="判定対象" value="圧縮後サイズ" />
         </div>

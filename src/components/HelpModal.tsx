@@ -58,7 +58,7 @@ export function HelpModal({ onClose }: HelpModalProps) {
           />
           <HelpItem
             title="写真"
-            body="写真は予定ごとではなく日ごとに保存します。圧縮目標は約1MBで、圧縮後1.5MB以下なら追加できます。"
+            body="写真は予定ごとではなく日ごとに保存します。圧縮目標は約1MBで、圧縮後2MB以下なら追加できます。"
           />
           <HelpItem
             title="バックアップ"
