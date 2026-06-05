@@ -25,7 +25,7 @@ type CloudflareCacheStorage = CacheStorage & {
 };
 
 const maxSnapshotBytes = 1_000_000;
-const maxImageBytes = 2_000_000;
+const maxImageBytes = 2 * 1024 * 1024;
 
 // Cloudflare専用のentrypointです。アプリ本体のHTTP契約はserver/core側へ逃がします。
 export default {

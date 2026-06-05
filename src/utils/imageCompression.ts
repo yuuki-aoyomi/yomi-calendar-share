@@ -30,7 +30,7 @@ type CompressionOptions = {
 
 const defaultOptions: CompressionOptions = {
   maxBytes: 1_000_000,
-  maxAllowedBytes: 2_000_000,
+  maxAllowedBytes: 2 * 1024 * 1024,
   maxLongSide: 1600,
   mimeType: 'image/webp',
 };
@@ -150,5 +150,5 @@ export const compressImageFile = async (
 
 export const formatBytes = (bytes: number): string => {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+  return `${(bytes / 1024 / 1024).toFixed(2)}MB`;
 };
