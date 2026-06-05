@@ -615,9 +615,12 @@ h1 {
 .day-cell {
   position: relative;
   display: flex;
+  min-width: 0;
   min-height: 116px;
+  width: 100%;
   flex-direction: column;
   justify-content: space-between;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 10px;
@@ -739,6 +742,7 @@ h1 {
 
 .day-cell-top {
   display: flex;
+  min-width: 0;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -777,10 +781,13 @@ h1 {
 .day-preview-list {
   display: grid;
   gap: 4px;
+  min-width: 0;
   min-height: 48px;
 }
 
 .day-preview-item {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   border-left: 4px solid transparent;
   border-radius: 7px;
@@ -1656,8 +1663,10 @@ textarea:focus {
 }
 
 .item-card h4 {
+  min-width: 0;
   margin: 8px 0 6px;
   color: var(--heading);
+  overflow-wrap: anywhere;
 }
 
 .item-card.todo-done h4 {
@@ -1666,9 +1675,11 @@ textarea:focus {
 }
 
 .item-card p {
+  min-width: 0;
   margin-bottom: 6px;
   color: var(--muted-text);
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .time-text {
@@ -2848,10 +2859,10 @@ textarea:focus {
   .item-card p,
   .todo-list-item label span {
     overflow: hidden;
-    overflow-wrap: normal;
+    overflow-wrap: anywhere;
     word-break: keep-all;
     text-overflow: clip;
-    white-space: nowrap;
+    white-space: normal;
   }
 
   .day-preview-item {
