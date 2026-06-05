@@ -25,7 +25,7 @@ type CloudflareCacheStorage = CacheStorage & {
 };
 
 const maxSnapshotBytes = 1_000_000;
-const maxImageBytes = 1_200_000;
+const maxImageBytes = 2_000_000;
 
 // Cloudflare専用のentrypointです。アプリ本体のHTTP契約はserver/core側へ逃がします。
 export default {
@@ -123,7 +123,7 @@ async function handleImageUpload(request: Request, env: Env): Promise<Response> 
   }
 
   if (file.size > maxImageBytes) {
-    return jsonError('payload_too_large', 'image is too large.', 413);
+    return jsonError('payload_too_large', 'image is larger than 2MB after compression.', 413);
   }
 
   const extension = getImageExtension(file.type, file.name);
