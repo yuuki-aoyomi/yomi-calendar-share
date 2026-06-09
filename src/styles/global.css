@@ -2248,6 +2248,100 @@ textarea:focus {
   color: #6552c7;
 }
 
+.expense-chart-panel {
+  border-color: rgba(232, 89, 12, 0.24);
+  background: #fff7ed;
+}
+
+:root[data-theme="dark"] .expense-chart-panel {
+  background: #3a2415;
+}
+
+.expense-chart-layout {
+  display: grid;
+  grid-template-columns: minmax(150px, 190px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.expense-pie-chart {
+  display: grid;
+  width: 100%;
+  aspect-ratio: 1;
+  place-items: center;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 18px rgba(255, 255, 255, 0.72);
+}
+
+:root[data-theme="dark"] .expense-pie-chart {
+  box-shadow: inset 0 0 0 18px rgba(24, 34, 53, 0.72);
+}
+
+.expense-pie-chart span {
+  display: grid;
+  width: 72px;
+  height: 72px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--heading);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.expense-chart-list {
+  display: grid;
+  gap: 8px;
+}
+
+.expense-chart-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--card-bg);
+}
+
+.expense-chart-row i {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.expense-chart-row span {
+  min-width: 0;
+  color: var(--heading);
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.expense-chart-row strong {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.expense-chart-row small {
+  color: var(--muted-text);
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.salary-amount-stack {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+  text-align: right;
+}
+
+.salary-amount-stack small {
+  color: var(--muted-text);
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .settings-section {
   display: grid;
   gap: 16px;
@@ -2949,7 +3043,18 @@ textarea:focus {
 
   .piggy-bank-panel,
   .birthday-panel,
-  .heart-meter {
+  .heart-meter,
+  .expense-chart-layout {
     grid-template-columns: 1fr;
+  }
+
+  .expense-pie-chart {
+    max-width: 220px;
+    justify-self: center;
+  }
+
+  .salary-amount-stack {
+    justify-items: start;
+    text-align: left;
   }
 }

@@ -98,6 +98,8 @@ export type MoneyRecord = {
   type: 'income' | 'expense';
   amount: number;
   category: string;
+  incomeSource?: 'part-time' | 'other';
+  partTimeJobId?: string;
   memo?: string;
   isCreditCard?: boolean;
   creditCardId?: string;

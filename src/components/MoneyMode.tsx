@@ -22,6 +22,13 @@ type MoneyModeProps = {
   onRecordsChange: React.Dispatch<React.SetStateAction<MoneyRecord[]>>;
 };
 
+type CategoryBreakdownItem = {
+  category: string;
+  amount: number;
+  percent: number;
+  color: string;
+};
+
 const formatMonthLabel = (monthKey: string): string => {
   const [, month] = monthKey.split('-').map(Number);
   return `${month}月`;
@@ -43,6 +50,8 @@ const parseMoneyAmount = (value: string): number | undefined => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 };
 
+const chartColors = ['#f59f00', '#1fbf83', '#4c7edb', '#e8590c', '#7c6ee6', '#d6336c'];
+
 export function MoneyMode({
   selectedDate,
   currentMonthKey,
@@ -59,17 +68,26 @@ export function MoneyMode({
   const [memo, setMemo] = useState('');
   const [isCreditCard, setIsCreditCard] = useState(true);
   const [creditCardId, setCreditCardId] = useState('');
+  const [isPartTimeIncome, setIsPartTimeIncome] = useState(false);
+  const [partTimeJobId, setPartTimeJobId] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [recordAmountInputs, setRecordAmountInputs] = useState<Record<string, string>>({});
   const monthLabel = formatMonthLabel(currentMonthKey);
+  const currentYearKey = currentMonthKey.slice(0, 4);
 
   const monthRecords = useMemo(
     () => records.filter((record) => record.date.startsWith(currentMonthKey)),
     [records, currentMonthKey],
   );
   const otherIncomeTotal = monthRecords
-    .filter((record) => record.type === 'income')
+    .filter((record) => record.type === 'income' && record.incomeSource !== 'part-time')
+    .reduce((sum, record) => sum + record.amount, 0);
+  const actualPartTimeIncomeTotal = monthRecords
+    .filter((record) => record.type === 'income' && record.incomeSource === 'part-time')
+    .reduce((sum, record) => sum + record.amount, 0);
+  const annualPartTimeIncomeTotal = records
+    .filter((record) => record.date.startsWith(currentYearKey) && record.type === 'income' && record.incomeSource === 'part-time')
     .reduce((sum, record) => sum + record.amount, 0);
   const paymentSchedules = useMemo(
     () => buildCreditCardPaymentSchedules(records, creditCards),
@@ -91,33 +109,51 @@ export function MoneyMode({
   );
   const monthPaymentTotal = monthPaymentSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
   const monthSalaryPaymentTotal = salaryPaymentSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
+  const effectiveSalaryPaymentSchedules = salaryPaymentSchedules.filter(
+    (schedule) =>
+      !monthRecords.some(
+        (record) =>
+          record.type === 'income' &&
+          record.incomeSource === 'part-time' &&
+          record.date === schedule.paymentDate &&
+          (!record.partTimeJobId || record.partTimeJobId === schedule.jobId),
+      ),
+  );
+  const estimatedPartTimeIncomeTotal = effectiveSalaryPaymentSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
   const monthSubscriptionTotal = subscriptionPaymentSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
   const directExpenseTotal = monthRecords
     .filter((record) => record.type === 'expense' && (!record.isCreditCard || !record.creditCardId))
     .reduce((sum, record) => sum + record.amount, 0);
   const expenseTotal = directExpenseTotal + monthPaymentTotal + monthSubscriptionTotal;
-  const workIncomeTotal = monthSalaryPaymentTotal;
+  const workIncomeTotal = actualPartTimeIncomeTotal + estimatedPartTimeIncomeTotal;
   const incomeTotal = workIncomeTotal + otherIncomeTotal;
   const balance = incomeTotal - expenseTotal;
+  const expenseBreakdown = useMemo(
+    () => buildExpenseCategoryBreakdown(monthRecords, subscriptionPaymentSchedules),
+    [monthRecords, subscriptionPaymentSchedules],
+  );
   const workSummaries = partTimeJobs.map((job) => {
     const jobSchedules = salaryPaymentSchedules.filter((schedule) => schedule.jobId === job.id);
     const amount = jobSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
     const minutes = jobSchedules.reduce((sum, schedule) => sum + schedule.minutes, 0);
+    const actualAmount = monthRecords
+      .filter((record) => record.type === 'income' && record.incomeSource === 'part-time' && record.partTimeJobId === job.id)
+      .reduce((sum, record) => sum + record.amount, 0);
 
-    return { job, minutes, estimatedPay: amount, paymentCount: jobSchedules.length };
+    return { job, minutes, estimatedPay: amount, actualPay: actualAmount, paymentCount: jobSchedules.length };
   });
   const cashFlowWarning = buildMonthlyCashFlowWarning(
     currentMonthKey,
     monthRecords,
     monthPaymentSchedules,
-    salaryPaymentSchedules,
+    effectiveSalaryPaymentSchedules,
     subscriptionPaymentSchedules,
   );
   const creditCardFailureWarning = buildCreditCardFailureWarning(
     currentMonthKey,
     monthRecords,
     monthPaymentSchedules,
-    salaryPaymentSchedules,
+    effectiveSalaryPaymentSchedules,
     subscriptionPaymentSchedules,
     lowBalanceThreshold,
   );
@@ -141,6 +177,8 @@ export function MoneyMode({
     setMemo('');
     setIsCreditCard(type === 'expense');
     setCreditCardId('');
+    setIsPartTimeIncome(false);
+    setPartTimeJobId('');
   };
 
   const openCreateForm = () => {
@@ -150,6 +188,8 @@ export function MoneyMode({
     setMemo('');
     setIsCreditCard(true);
     setCreditCardId('');
+    setIsPartTimeIncome(false);
+    setPartTimeJobId('');
     setIsCreateOpen(true);
   };
 
@@ -167,9 +207,11 @@ export function MoneyMode({
         type,
         amount: parsedAmount,
         category: category.trim(),
+        incomeSource: type === 'income' && isPartTimeIncome ? 'part-time' : undefined,
+        partTimeJobId: type === 'income' && isPartTimeIncome ? partTimeJobId || undefined : undefined,
         memo: memo.trim() || undefined,
-        isCreditCard,
-        creditCardId: isCreditCard ? creditCardId || undefined : undefined,
+        isCreditCard: type === 'expense' ? isCreditCard : false,
+        creditCardId: type === 'expense' && isCreditCard ? creditCardId || undefined : undefined,
         createdAt: now,
         updatedAt: now,
       },
@@ -197,6 +239,16 @@ export function MoneyMode({
         <SummaryCard label="支出" value={expenseTotal} tone="expense" />
         <SummaryCard label="差額" value={balance} tone={balance >= 0 ? 'income' : 'expense'} />
       </div>
+
+      <section className="payment-panel salary-panel">
+        <div className="section-title">
+          <h3>{currentYearKey}年のバイト実収入</h3>
+          <span>{annualPartTimeIncomeTotal.toLocaleString()}円</span>
+        </div>
+        <p className="helper-text">
+          収入を「バイト実収入」として記録した金額だけを合計します。予定からの見込み給料は含めません。
+        </p>
+      </section>
 
       <PiggyBankPanel
         monthLabel={monthLabel}
@@ -247,6 +299,11 @@ export function MoneyMode({
         </section>
       )}
 
+      <ExpenseCategoryChart
+        monthLabel={monthLabel}
+        items={expenseBreakdown}
+      />
+
       <section className="payment-panel salary-panel">
         <div className="section-title">
           <h3>{monthLabel}の給料日</h3>
@@ -273,9 +330,12 @@ export function MoneyMode({
                   </h4>
                   <p>{summary.job.hourlyWage ? `時給 ${summary.job.hourlyWage.toLocaleString()}円` : '時給未設定'}</p>
                 </div>
-                <strong>
-                  {summary.paymentCount === 0 ? '今月入金なし' : `${summary.estimatedPay.toLocaleString()}円`}
-                </strong>
+                <div className="salary-amount-stack">
+                  <strong>{summary.actualPay > 0 ? `${summary.actualPay.toLocaleString()}円` : '実収入未入力'}</strong>
+                  <small>
+                    見込み {summary.paymentCount === 0 ? 'なし' : `${summary.estimatedPay.toLocaleString()}円`}
+                  </small>
+                </div>
               </article>
             ))}
           </div>
@@ -325,6 +385,9 @@ export function MoneyMode({
                 <h4>{record.category}</h4>
                 <p>
                   {record.memo || 'メモなし'}
+                  {record.partTimeJobId
+                    ? ` / ${partTimeJobs.find((job) => job.id === record.partTimeJobId)?.name ?? 'バイト先未登録'}`
+                    : ''}
                   {record.creditCardId
                     ? ` / ${creditCards.find((card) => card.id === record.creditCardId)?.name ?? 'カード未登録'}`
                     : ''}
@@ -380,6 +443,8 @@ export function MoneyMode({
                   onClick={() => {
                     setType('expense');
                     setIsCreditCard(true);
+                    setIsPartTimeIncome(false);
+                    setPartTimeJobId('');
                   }}
                 >
                   支出
@@ -409,6 +474,39 @@ export function MoneyMode({
                   placeholder={type === 'income' ? 'おこづかい、臨時収入など' : '食費、交通費など'}
                 />
               </label>
+              {type === 'income' && (
+                <>
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={isPartTimeIncome}
+                      onChange={(event) => {
+                        setIsPartTimeIncome(event.target.checked);
+                        if (event.target.checked && !category.trim()) {
+                          setCategory('バイト収入');
+                        }
+                        if (!event.target.checked) {
+                          setPartTimeJobId('');
+                        }
+                      }}
+                    />
+                    バイト実収入として記録
+                  </label>
+                  {isPartTimeIncome && (
+                    <label>
+                      バイト先
+                      <select value={partTimeJobId} onChange={(event) => setPartTimeJobId(event.target.value)}>
+                        <option value="">未選択</option>
+                        {partTimeJobs.map((job) => (
+                          <option key={job.id} value={job.id}>
+                            {job.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </>
+              )}
               <label>
                 メモ
                 <textarea value={memo} onChange={(event) => setMemo(event.target.value)} />
@@ -478,6 +576,7 @@ export function MoneyMode({
             <MoneyRecordEditForm
               record={editingRecord}
               creditCards={creditCards}
+              partTimeJobs={partTimeJobs}
               amountInput={recordAmountInputs[editingRecord.id] ?? String(editingRecord.amount)}
               onAmountInputChange={(value) =>
                 setRecordAmountInputs((current) => ({ ...current, [editingRecord.id]: value }))
@@ -505,6 +604,7 @@ export function MoneyMode({
 function MoneyRecordEditForm({
   record,
   creditCards,
+  partTimeJobs,
   amountInput,
   onAmountInputChange,
   onAmountInputClear,
@@ -513,6 +613,7 @@ function MoneyRecordEditForm({
 }: {
   record: MoneyRecord;
   creditCards: CreditCardSetting[];
+  partTimeJobs: PartTimeJob[];
   amountInput: string;
   onAmountInputChange: (value: string) => void;
   onAmountInputClear: () => void;
@@ -540,6 +641,8 @@ function MoneyRecordEditForm({
                 type: event.target.value as MoneyRecord['type'],
                 isCreditCard: event.target.value === 'expense' ? item.isCreditCard : false,
                 creditCardId: event.target.value === 'expense' ? item.creditCardId : undefined,
+                incomeSource: event.target.value === 'income' ? item.incomeSource : undefined,
+                partTimeJobId: event.target.value === 'income' ? item.partTimeJobId : undefined,
                 updatedAt: new Date().toISOString(),
               }))
             }
@@ -586,6 +689,48 @@ function MoneyRecordEditForm({
             }
           />
         </label>
+        {record.type === 'income' && (
+          <>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={record.incomeSource === 'part-time'}
+                onChange={(event) =>
+                  updateRecord((item) => ({
+                    ...item,
+                    incomeSource: event.target.checked ? 'part-time' : undefined,
+                    partTimeJobId: event.target.checked ? item.partTimeJobId : undefined,
+                    category: event.target.checked && !item.category.trim() ? 'バイト収入' : item.category,
+                    updatedAt: new Date().toISOString(),
+                  }))
+                }
+              />
+              バイト実収入
+            </label>
+            {record.incomeSource === 'part-time' && (
+              <label>
+                バイト先
+                <select
+                  value={record.partTimeJobId ?? ''}
+                  onChange={(event) =>
+                    updateRecord((item) => ({
+                      ...item,
+                      partTimeJobId: event.target.value || undefined,
+                      updatedAt: new Date().toISOString(),
+                    }))
+                  }
+                >
+                  <option value="">未選択</option>
+                  {partTimeJobs.map((job) => (
+                    <option key={job.id} value={job.id}>
+                      {job.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </>
+        )}
         {record.type === 'expense' && (
           <>
             <label className="checkbox-label">
@@ -634,6 +779,79 @@ function MoneyRecordEditForm({
         </div>
       </div>
     </div>
+  );
+}
+
+function buildExpenseCategoryBreakdown(
+  monthRecords: MoneyRecord[],
+  subscriptionPaymentSchedules: ReturnType<typeof buildSubscriptionPaymentSchedules>,
+): CategoryBreakdownItem[] {
+  const categoryAmounts = new Map<string, number>();
+
+  monthRecords
+    .filter((record) => record.type === 'expense')
+    .forEach((record) => {
+      categoryAmounts.set(record.category, (categoryAmounts.get(record.category) ?? 0) + record.amount);
+    });
+
+  subscriptionPaymentSchedules.forEach((schedule) => {
+    categoryAmounts.set(schedule.category, (categoryAmounts.get(schedule.category) ?? 0) + schedule.amount);
+  });
+
+  const total = [...categoryAmounts.values()].reduce((sum, amount) => sum + amount, 0);
+  if (total === 0) return [];
+
+  return [...categoryAmounts.entries()]
+    .sort(([, a], [, b]) => b - a)
+    .map(([category, amount], index) => ({
+      category,
+      amount,
+      percent: Math.round((amount / total) * 100),
+      color: chartColors[index % chartColors.length],
+    }));
+}
+
+function ExpenseCategoryChart({ monthLabel, items }: { monthLabel: string; items: CategoryBreakdownItem[] }) {
+  const total = items.reduce((sum, item) => sum + item.amount, 0);
+  let currentPercent = 0;
+  const gradientStops = items.map((item) => {
+    const start = currentPercent;
+    const end = currentPercent + (item.amount / total) * 100;
+    currentPercent = end;
+    return `${item.color} ${start}% ${end}%`;
+  });
+
+  return (
+    <section className="payment-panel expense-chart-panel">
+      <div className="section-title">
+        <h3>{monthLabel}の支出カテゴリ</h3>
+        <span>{total.toLocaleString()}円</span>
+      </div>
+      {items.length === 0 ? (
+        <p className="helper-text">今月の支出はまだありません。</p>
+      ) : (
+        <div className="expense-chart-layout">
+          <div
+            className="expense-pie-chart"
+            style={{ background: `conic-gradient(${gradientStops.join(', ')})` }}
+            role="img"
+            aria-label={`${monthLabel}の支出カテゴリ円グラフ`}
+          >
+            <span>{items.length}分類</span>
+          </div>
+          <div className="expense-chart-list">
+            {items.map((item) => (
+              <div key={item.category} className="expense-chart-row">
+                <i style={{ background: item.color }} />
+                <span>{item.category}</span>
+                <strong>{item.amount.toLocaleString()}円</strong>
+                <small>{item.percent}%</small>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
