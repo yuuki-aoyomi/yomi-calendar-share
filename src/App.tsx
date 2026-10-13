@@ -291,6 +291,13 @@ function App() {
               {tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}
             </select>
           </div>
+          {events.some((event) => event.category === 'todo' && !event.done && event.highlightTodo !== false && event.date <= toDateKey(new Date())) && (
+            <section className="todo-alert-panel" role="status">
+              <strong>未完了のToDoがあります</strong>
+              <span>今日までの未完了: {events.filter((event) => event.category === 'todo' && !event.done && event.highlightTodo !== false && event.date <= toDateKey(new Date())).length}件</span>
+              <button type="button" onClick={() => { const pending = events.filter((event) => event.category === 'todo' && !event.done && event.highlightTodo !== false && event.date <= toDateKey(new Date())).sort((a,b) => a.date.localeCompare(b.date)); if (pending.length) { setSelectedDate(pending[0].date); setCurrentMonth(new Date(pending[0].date + 'T12:00:00')); setActiveMode('schedule'); } }}>最も古い未完了日を表示</button>
+            </section>
+          )}
           <Calendar
             currentMonth={currentMonth}
             activeMode={activeMode}
