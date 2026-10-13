@@ -3063,3 +3063,48 @@ textarea:focus {
 .day-cell.tag-highlight-day { outline: 2px solid var(--accent-color, #7c6ee6); outline-offset: -3px; }
 .day-cell .tag-highlight { font-weight: 800; box-shadow: inset 3px 0 0 var(--accent-color, #7c6ee6); background-color: rgba(124, 110, 230, 0.14); }
 .calendar-tag-highlighter select { max-width: 100%; padding: 6px 10px; border-radius: 8px; }
+
+
+/* Responsive containment: do not allow dashboard cards or money figures to widen the viewport. */
+.app-shell, .layout, .calendar-column, .calendar-main-panel, .workspace-panel,
+.mode-content, .money-mode, .money-summary, .summary-grid, .summary-card,
+.form-card, .form-grid, .two-column, .item-card, .item-main,
+.todo-group-list, .todo-tag-group, .todo-list, .todo-list-item {
+  min-width: 0;
+}
+.workspace-panel, .calendar-main-panel, .mode-content, .money-mode {
+  max-width: 100%;
+}
+.summary-grid, .two-column, .form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+}
+.summary-grid > *, .two-column > *, .form-grid > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.summary-card, .amount-block, .money-warning-panel {
+  overflow-wrap: anywhere;
+}
+input, select, textarea { max-width: 100%; min-width: 0; }
+.todo-list-item { gap: 10px; padding: 12px; border-radius: 12px; }
+.todo-list-item label { min-width: 0; }
+.todo-list-item label span { overflow-wrap: anywhere; }
+.todo-list-item.done { opacity: .65; }
+.todo-list-item:focus-within { outline: 2px solid var(--accent-color, #7c6ee6); outline-offset: -2px; }
+.day-cell.japanese-holiday .day-number { color: #db4562; }
+.holiday-preview { color: #c53655; background: rgba(219,69,98,.1); font-weight: 650; }
+@media (max-width: 640px) {
+  .app-shell { width: calc(100% - 16px); }
+  .calendar-panel, .workspace-panel { padding: 10px; }
+  .calendar-grid { gap: 3px; }
+  .day-cell { min-width: 0; min-height: 60px; padding: 4px 2px; }
+  .day-preview-list { overflow: hidden; }
+  .day-preview-item { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .summary-grid, .two-column, .form-grid { grid-template-columns: minmax(0, 1fr); }
+  .todo-tag-group { max-width: 100%; }
+  .todo-list-item { grid-template-columns: auto minmax(0, 1fr); }
+  .todo-list-item > .ghost-button { width: 100%; }
+  .mode-tabs { min-width: 0; }
+  .modal-panel { width: 100%; overflow-x: hidden; }
+  .mode-toolbar > * { min-width: 0; }
+}
