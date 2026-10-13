@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { createCalendarBackup, parseCalendarBackup } from '../server/core/calendarBackup.ts';
+import { getJapaneseHoliday } from '../src/utils/japaneseHolidays.ts';
 import test from 'node:test';
 import { buildCreditCardPaymentSchedules } from '../src/utils/creditCard.ts';
 import { matchesHighlightedTag } from '../src/utils/calendarHighlight.ts';
@@ -43,4 +45,26 @@ test('tag highlight only matches explicitly selected tags', () => {
   assert.equal(matchesHighlightedTag([event(['work'])], 'personal'), false);
   assert.equal(matchesHighlightedTag([event(['work'])], undefined), false);
   assert.equal(matchesHighlightedTag([], 'work'), false);
+});
+
+test('D1 backup preserves all calendar rows and Japanese text', () => {
+  const rows = [
+    { calendar_id: 'main', snapshot_json: JSON.stringify({ events: [{ title: '買い物' }] }), created_at: '2026-10-13', updated_at: '2026-10-13' },
+    { calendar_id: 'shared', snapshot_json: JSON.stringify({ events: [] }), created_at: '2026-10-12', updated_at: '2026-10-13' },
+  ];
+  const backup = createCalendarBackup(rows, '2026-10-13T18:00:00Z');
+  assert.deepEqual(parseCalendarBackup(JSON.parse(JSON.stringify(backup))).rows, rows);
+  assert.equal(backup.rowCount, 2);
+});
+
+test('D1 backup accepts empty database and rejects corrupted snapshots', () => {
+  assert.equal(createCalendarBackup([], '2026-10-13T18:00:00Z').rowCount, 0);
+  assert.throws(() => createCalendarBackup([{ calendar_id: 'bad', snapshot_json: '{', created_at: 'a', updated_at: 'b' }], 'now'));
+  assert.throws(() => parseCalendarBackup({ format: 'unknown', version: 1, rows: [], rowCount: 0 }));
+});
+
+test('Japanese holidays include substitute holidays', () => {
+  assert.equal(getJapaneseHoliday('2026-05-03'), '憲法記念日');
+  assert.equal(getJapaneseHoliday('2026-05-06'), '振替休日');
+  assert.equal(getJapaneseHoliday('2026-10-13'), undefined);
 });
