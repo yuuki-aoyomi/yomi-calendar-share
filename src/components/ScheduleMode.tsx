@@ -150,6 +150,7 @@ export function ScheduleMode({
               tags: tag ? [tag.name] : [],
               timelineItems: [],
               done: false,
+              highlightTodo: true,
               createdAt: now,
               updatedAt: now,
             },
