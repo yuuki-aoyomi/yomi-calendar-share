@@ -15,3 +15,10 @@ database_id = "c2d6cf22-5bc6-48c9-961b-a4b592a150f2"
 [[r2_buckets]]
 binding = "IMAGES"
 bucket_name = "yomi-calendar-share-images"
+
+[[r2_buckets]]
+binding = "BACKUPS"
+bucket_name = "yomi-calendar-share-backups"
+
+[triggers]
+crons = ["0 18 * * *"] # 毎日03:00 JST
