@@ -20,7 +20,23 @@
 
 失敗時はWorkerのscheduledイベントがエラーになります。CloudflareのWorkerログやアラートを有効にして監視してください。
 
-## 復元手順（手動）
+## 復元CLI（ローカルD1限定）
+
+`node scripts/restore-d1.mjs backup.json` はバックアップ形式、件数、重複ID、各行のJSONを検証するだけの**dry-run**です。DBへは書き込みません。
+
+```sh
+node scripts/restore-d1.mjs backup.json
+```
+
+検証用D1を `wrangler.toml` に別バインディングで設定し、`calendar_snapshots` テーブルを作成した後に限り、明示的にローカル復元できます。
+
+```sh
+node scripts/restore-d1.mjs backup.json --apply --database yomi-calendar-restore-test
+```
+
+このCLIは `--remote` を受け付けません。既存のカレンダーIDはUPSERTで上書きされるため、**必ず専用の検証用D1を指定**してください。対象外の行は削除しません。成功後は `wrangler d1 execute ... --local --command` で件数と内容を照合してください。
+
+## 本番への復元手順（手動）
 
 1. **まず現行D1を別途バックアップ**し、書き込みを停止します。
 2. R2から復元対象のJSONをダウンロードします。例：
@@ -32,7 +48,7 @@
 5. 復元対象を承認後、同じUPSERTを本番へ適用します。バックアップに存在しないカレンダーの削除は自動では行いません。
 6. アプリから読み取り・書き込みを確認して再開します。
 
-本PRには本番D1を自動上書きする復元エンドポイントはありません。事故防止のため、復元は手動で行います。
+本PRには本番D1を自動上書きする復元エンドポイントや本番復元CLIはありません。事故防止のため、本番復元は手動で行います。
 
 ## 保護範囲と限界
 
