@@ -26,6 +26,7 @@ type CalendarGridProps = {
   dailyPhotos: DailyPhoto[];
   loveLogs: LoveLog[];
   tags: CalendarTag[];
+  highlightedTagIds: string[];
   onSelectDate: (date: string) => void;
   onEditEvent: (eventId: string) => void;
 };
@@ -66,6 +67,7 @@ export function CalendarGrid({
   dailyPhotos,
   loveLogs,
   tags,
+  highlightedTagIds,
   onSelectDate,
   onEditEvent,
 }: CalendarGridProps) {
@@ -90,6 +92,7 @@ export function CalendarGrid({
       <div className="calendar-grid">
         {days.map((day) => {
           const dayEvents = events.filter((event) => eventOccursOnDate(event, day.date));
+          const matchesHighlightedTag = highlightedTagIds.length > 0 && dayEvents.some((event) => (event.tagIds ?? []).some((id) => highlightedTagIds.includes(id)));
           const dayMoneyRecords = moneyRecords.filter((record) => record.date === day.date);
           const dayPayments = paymentSchedules.filter((schedule) => schedule.paymentDate === day.date);
           const daySalaries = salarySchedules.filter((schedule) => schedule.paymentDate === day.date);
@@ -118,9 +121,9 @@ export function CalendarGrid({
           const eventItems: CalendarPreviewItem[] = visibleScheduleEvents.map((event) => ({
               id: event.id,
               className:
-                event.category === 'diary'
+                (highlightedTagIds.length > 0 && (event.tagIds ?? []).some((id) => highlightedTagIds.includes(id)) ? 'tag-highlight ' : '') + (event.category === 'diary'
                     ? 'diary-preview'
-                    : `schedule-preview${getEventSpanClass(event, day.date)}`,
+                    : `schedule-preview${getEventSpanClass(event, day.date)}`),
               label:
                 event.endDate && event.endDate > event.date && day.date !== event.date
                   ? '\u00a0'
@@ -164,6 +167,7 @@ export function CalendarGrid({
               type="button"
               className={[
                 'day-cell',
+                matchesHighlightedTag ? 'tag-highlight-day' : '',
                 day.isCurrentMonth ? '' : 'muted',
                 day.isToday ? 'today' : '',
                 isSelected ? 'selected' : '',
