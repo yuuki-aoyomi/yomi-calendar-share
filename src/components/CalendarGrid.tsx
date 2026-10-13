@@ -102,7 +102,7 @@ export function CalendarGrid({
           const birthdayTags = getBirthdayTagsForDate(tags, day.date);
           const holidayName = getJapaneseHoliday(day.date);
           const hasSchedule = dayEvents.some((event) => event.category !== 'diary' && event.category !== 'todo');
-          const hasIncompleteTodo = dayEvents.some((event) => event.category === 'todo' && !event.done);
+          const hasIncompleteTodo = dayEvents.some((event) => event.category === 'todo' && !event.done && event.highlightTodo !== false && event.date <= toDateKey(new Date()));
           const hasDiary = dayEvents.some((event) => event.category === 'diary') || dailyPhotos.some((photo) => photo.date === day.date);
           const hasMoney =
             dayMoneyRecords.length > 0 ||
