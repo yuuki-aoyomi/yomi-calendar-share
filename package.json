@@ -12,7 +12,7 @@
     "cf:deploy": "npm run build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply yomi-calendar-share-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply yomi-calendar-share-db --remote",
-    "test": "node --experimental-strip-types --test tests/*.test.ts"
+    "test": "node node_modules/esbuild/bin/esbuild tests/features.test.ts --bundle --platform=node --format=esm --outfile=/tmp/yomi-calendar-features.test.mjs && node --test /tmp/yomi-calendar-features.test.mjs"
   },
   "dependencies": {
     "react": "^19.2.6",
