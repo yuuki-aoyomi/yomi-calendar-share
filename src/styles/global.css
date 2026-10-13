@@ -3058,3 +3058,8 @@ textarea:focus {
     text-align: left;
   }
 }
+
+/* Selected tag highlighting in calendar */
+.day-cell.tag-highlight-day { outline: 2px solid var(--accent-color, #7c6ee6); outline-offset: -3px; }
+.day-cell .tag-highlight { font-weight: 800; box-shadow: inset 3px 0 0 var(--accent-color, #7c6ee6); background-color: rgba(124, 110, 230, 0.14); }
+.calendar-tag-highlighter select { max-width: 100%; padding: 6px 10px; border-radius: 8px; }
