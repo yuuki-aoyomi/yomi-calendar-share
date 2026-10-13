@@ -84,6 +84,7 @@ export function EventForm({
   const [endTime, setEndTime] = useState('');
   const [breakMinutes, setBreakMinutes] = useState('');
   const [category, setCategory] = useState<EventCategory>('schedule');
+  const [highlightTodo, setHighlightTodo] = useState(true);
   const [memo, setMemo] = useState('');
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [newTagName, setNewTagName] = useState('');
@@ -117,6 +118,7 @@ export function EventForm({
     setEndTime('');
     setBreakMinutes('');
     setCategory('schedule');
+    setHighlightTodo(true);
     setMemo('');
     setSelectedTagIds([]);
     setRecurrence('none');
@@ -140,6 +142,7 @@ export function EventForm({
       editingEvent.breakMinutes === undefined ? '' : String(editingEvent.breakMinutes),
     );
     setCategory(editingEvent.category);
+    setHighlightTodo(editingEvent.highlightTodo !== false);
     setMemo(editingEvent.memo ?? '');
     setSelectedTagIds(editingEvent.tagIds ?? []);
     setRecurrence(editingEvent.recurrence?.frequency ?? 'none');
@@ -255,6 +258,7 @@ export function EventForm({
             },
       timelineItems,
       done: category === 'todo' ? editingEvent?.done ?? false : undefined,
+      highlightTodo: category === 'todo' ? highlightTodo : undefined,
       createdAt: editingEvent?.createdAt ?? now,
       updatedAt: now,
     });
@@ -350,6 +354,7 @@ export function EventForm({
             </option>
           ))}
         </select>
+        {category === 'todo' && <span className="todo-highlight-setting"><input type="checkbox" checked={highlightTodo} onChange={(event) => setHighlightTodo(event.target.checked)} />未完了時に強調表示する</span>}
       </label>
 
       <div className="form-grid">

@@ -55,6 +55,7 @@ export type CalendarEvent = {
   recurrence?: RecurrenceRule;
   timelineItems: EventTimelineItem[];
   done?: boolean;
+  highlightTodo?: boolean;
   createdAt: string;
   updatedAt: string;
 };
