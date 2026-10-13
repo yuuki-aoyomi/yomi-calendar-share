@@ -10,6 +10,7 @@ import type {
   PartTimeJob,
 } from '../types/calendar';
 import { buildCreditCardPaymentSchedules } from '../utils/creditCard';
+import { matchesHighlightedTag } from '../utils/calendarHighlight';
 import { buildCalendarDays, getMonthKey } from '../utils/date';
 import { eventOccursOnDate } from '../utils/recurrence';
 import { buildSalaryPaymentSchedules } from '../utils/salary';
@@ -92,7 +93,7 @@ export function CalendarGrid({
       <div className="calendar-grid">
         {days.map((day) => {
           const dayEvents = events.filter((event) => eventOccursOnDate(event, day.date));
-          const matchesHighlightedTag = highlightedTagIds.length > 0 && dayEvents.some((event) => (event.tagIds ?? []).some((id) => highlightedTagIds.includes(id)));
+          const hasHighlightedTag = matchesHighlightedTag(dayEvents, highlightedTagIds[0]);
           const dayMoneyRecords = moneyRecords.filter((record) => record.date === day.date);
           const dayPayments = paymentSchedules.filter((schedule) => schedule.paymentDate === day.date);
           const daySalaries = salarySchedules.filter((schedule) => schedule.paymentDate === day.date);
@@ -121,7 +122,7 @@ export function CalendarGrid({
           const eventItems: CalendarPreviewItem[] = visibleScheduleEvents.map((event) => ({
               id: event.id,
               className:
-                (highlightedTagIds.length > 0 && (event.tagIds ?? []).some((id) => highlightedTagIds.includes(id)) ? 'tag-highlight ' : '') + (event.category === 'diary'
+                (matchesHighlightedTag([event], highlightedTagIds[0]) ? 'tag-highlight ' : '') + (event.category === 'diary'
                     ? 'diary-preview'
                     : `schedule-preview${getEventSpanClass(event, day.date)}`),
               label:
@@ -167,7 +168,7 @@ export function CalendarGrid({
               type="button"
               className={[
                 'day-cell',
-                matchesHighlightedTag ? 'tag-highlight-day' : '',
+                hasHighlightedTag ? 'tag-highlight-day' : '',
                 day.isCurrentMonth ? '' : 'muted',
                 day.isToday ? 'today' : '',
                 isSelected ? 'selected' : '',
