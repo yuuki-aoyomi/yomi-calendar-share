@@ -12,7 +12,7 @@ import type {
 import { buildCreditCardPaymentSchedules } from '../utils/creditCard';
 import { getJapaneseHoliday } from '../utils/japaneseHolidays';
 import { matchesHighlightedTag } from '../utils/calendarHighlight';
-import { buildCalendarDays, getMonthKey } from '../utils/date';
+import { buildCalendarDays, getMonthKey, toDateKey } from '../utils/date';
 import { eventOccursOnDate } from '../utils/recurrence';
 import { buildSalaryPaymentSchedules } from '../utils/salary';
 import { findMainTag, getBirthdayTagsForDate } from '../utils/tags';
@@ -172,6 +172,7 @@ export function CalendarGrid({
               className={[
                 'day-cell',
                 hasHighlightedTag ? 'tag-highlight-day' : '',
+                hasIncompleteTodo ? 'day-has-pending-todo' : '',
                 day.isCurrentMonth ? '' : 'muted',
                 day.isToday ? 'today' : '',
                 isSelected ? 'selected' : '',
@@ -192,6 +193,7 @@ export function CalendarGrid({
                   {birthdayTags.length > 0 && <i className="dot birthday-dot" />}
                 </span>
               </span>
+              {hasIncompleteTodo && <span className="todo-pending-count">未完了</span>}
               {visibleItems.length > 0 && (
                 <span className="day-preview-list">
                   {visibleItems.map((item) => (
