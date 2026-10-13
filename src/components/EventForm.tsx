@@ -354,7 +354,7 @@ export function EventForm({
             </option>
           ))}
         </select>
-        {category === 'todo' && <label className="todo-highlight-setting"><input type="checkbox" checked={highlightTodo} onChange={(event) => setHighlightTodo(event.target.checked)} />未完了時に強調表示する</label>}
+        {category === 'todo' && <span className="todo-highlight-setting"><input type="checkbox" checked={highlightTodo} onChange={(event) => setHighlightTodo(event.target.checked)} />未完了時に強調表示する</span>}
       </label>
 
       <div className="form-grid">
