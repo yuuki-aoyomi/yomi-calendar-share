@@ -10,6 +10,7 @@ import type {
   PartTimeJob,
 } from '../types/calendar';
 import { buildCreditCardPaymentSchedules } from '../utils/creditCard';
+import { getJapaneseHoliday } from '../utils/japaneseHolidays';
 import { matchesHighlightedTag } from '../utils/calendarHighlight';
 import { buildCalendarDays, getMonthKey } from '../utils/date';
 import { eventOccursOnDate } from '../utils/recurrence';
@@ -99,6 +100,7 @@ export function CalendarGrid({
           const daySalaries = salarySchedules.filter((schedule) => schedule.paymentDate === day.date);
           const dayLoveLogs = loveLogs.filter((log) => log.date === day.date);
           const birthdayTags = getBirthdayTagsForDate(tags, day.date);
+          const holidayName = getJapaneseHoliday(day.date);
           const hasSchedule = dayEvents.some((event) => event.category !== 'diary' && event.category !== 'todo');
           const hasIncompleteTodo = dayEvents.some((event) => event.category === 'todo' && !event.done);
           const hasDiary = dayEvents.some((event) => event.category === 'diary') || dailyPhotos.some((photo) => photo.date === day.date);
@@ -113,6 +115,7 @@ export function CalendarGrid({
             return (a.startTime || '').localeCompare(b.startTime || '');
           });
           const visibleScheduleEvents = sortedDayEvents.filter((event) => event.category !== 'todo');
+          const holidayItems: CalendarPreviewItem[] = holidayName ? [{ id: `holiday-${day.date}`, className: 'holiday-preview', label: holidayName }] : [];
           const birthdayItems: CalendarPreviewItem[] = birthdayTags.map((tag) => ({
             id: `birthday-${tag.id}`,
             className: 'birthday-preview',
@@ -160,7 +163,7 @@ export function CalendarGrid({
               ? moneyItems.slice(0, 3)
               : activeMode === 'love'
                 ? loveItems.slice(0, 3)
-                : [...birthdayItems, ...eventItems].slice(0, 3);
+                : [...holidayItems, ...birthdayItems, ...eventItems].slice(0, 3);
 
           return (
             <button
@@ -173,12 +176,13 @@ export function CalendarGrid({
                 day.isToday ? 'today' : '',
                 isSelected ? 'selected' : '',
                 birthdayTags.length > 0 ? 'birthday' : '',
+                holidayName ? 'japanese-holiday' : '',
                 day.date.startsWith(currentMonthKey) ? '' : 'outside-month',
               ].join(' ')}
               onClick={() => onSelectDate(day.date)}
             >
               <span className="day-cell-top">
-                <span className="day-number">{day.dayNumber}</span>
+                <span className="day-number" title={holidayName ?? undefined}>{day.dayNumber}</span>
                 <span className="day-dots" aria-hidden="true">
                   {hasSchedule && <i className="dot schedule-dot" />}
                   {hasIncompleteTodo && <i className="dot todo-dot" />}
