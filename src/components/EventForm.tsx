@@ -219,7 +219,8 @@ export function EventForm({
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!title.trim()) return;\n    if ((startTime && !normalizeTime(startTime)) || (endTime && !normalizeTime(endTime)) || (timelineTime && !normalizeTime(timelineTime))) return;
+    if (!title.trim()) return;
+    if ((startTime && !normalizeTime(startTime)) || (endTime && !normalizeTime(endTime)) || (timelineTime && !normalizeTime(timelineTime))) return;
 
     const now = new Date().toISOString();
     const selectedTagNames = orderedTags
