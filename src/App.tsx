@@ -39,6 +39,7 @@ const getTimePeriod = (): 'morning' | 'day' | 'evening' | 'night' => {
 };
 
 function App() {
+  const [highlightedTagIds, setHighlightedTagIds] = useState<string[]>([]);
   const [activeMode, setActiveMode] = useState<CalendarMode>('schedule');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -279,6 +280,17 @@ function App() {
 
       <div className="layout">
         <div className="calendar-column">
+          <div className="calendar-tag-highlighter" style={{ padding: '12px 16px' }}>
+            <label htmlFor="calendar-highlight-tag">強調するタグ</label>{' '}
+            <select
+              id="calendar-highlight-tag"
+              value={highlightedTagIds[0] ?? ''}
+              onChange={(event) => setHighlightedTagIds(event.target.value ? [event.target.value] : [])}
+            >
+              <option value="">すべて通常表示</option>
+              {tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}
+            </select>
+          </div>
           <Calendar
             currentMonth={currentMonth}
             activeMode={activeMode}
@@ -291,6 +303,7 @@ function App() {
             dailyPhotos={dailyPhotos}
             loveLogs={loveLogs}
             tags={tags}
+            highlightedTagIds={highlightedTagIds}
             onMonthChange={setCurrentMonth}
             onSelectDate={handleSelectDate}
             onEditEvent={(eventId) => {

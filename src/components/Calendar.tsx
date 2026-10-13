@@ -25,6 +25,7 @@ type CalendarProps = {
   dailyPhotos: DailyPhoto[];
   loveLogs: LoveLog[];
   tags: CalendarTag[];
+  highlightedTagIds: string[];
   onMonthChange: (date: Date) => void;
   onSelectDate: (date: string) => void;
   onEditEvent: (eventId: string) => void;
@@ -56,6 +57,7 @@ export function Calendar(props: CalendarProps) {
         dailyPhotos={props.dailyPhotos}
         loveLogs={props.loveLogs}
         tags={props.tags}
+        highlightedTagIds={props.highlightedTagIds}
         onSelectDate={props.onSelectDate}
         onEditEvent={props.onEditEvent}
       />

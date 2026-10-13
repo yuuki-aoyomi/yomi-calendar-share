@@ -350,6 +350,32 @@ export function MoneyMode({
         <PaymentScheduleList schedules={monthPaymentSchedules} emptyText="今月の引き落とし予定はありません。" />
       </section>
 
+      <section className="payment-panel">
+        <div className="section-title">
+          <h3>{monthLabel}のカード別請求額</h3>
+          <span>{monthPaymentTotal.toLocaleString()}円</span>
+        </div>
+        {creditCards.length === 0 ? (
+          <p className="helper-text">カードが登録されていません。</p>
+        ) : (
+          <div className="payment-list">
+            {creditCards.map((card) => {
+              const cardSchedules = monthPaymentSchedules.filter((schedule) => schedule.cardId === card.id);
+              const cardTotal = cardSchedules.reduce((sum, schedule) => sum + schedule.amount, 0);
+              return (
+                <article className="payment-item" key={card.id}>
+                  <div>
+                    <h4>{card.name}</h4>
+                    <p>{cardSchedules.length ? cardSchedules.map((schedule) => schedule.paymentDate).join(' / ') : '今月の引き落とし予定なし'}</p>
+                  </div>
+                  <strong>{cardTotal.toLocaleString()}円</strong>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
       <section className="payment-panel subscription-panel">
         <div className="section-title">
           <h3>{monthLabel}のサブスク</h3>
