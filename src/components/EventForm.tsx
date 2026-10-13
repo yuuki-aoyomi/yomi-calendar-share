@@ -46,6 +46,15 @@ const tagColors: Record<CalendarTagType, string> = {
 
 type RecurrenceInput = 'none' | RecurrenceFrequency;
 
+const normalizeTime = (value: string): string | undefined => {
+  const match = /^(\\d{1,2}):?(\\d{2})$/.exec(value.trim());
+  if (!match) return undefined;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return undefined;
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+};
+
 const getWorkMinutes = (startTime: string, endTime: string): number => {
   if (!startTime || !endTime) return 0;
 
@@ -193,10 +202,10 @@ export function EventForm({
   };
 
   const handleAddTimelineItem = () => {
-    if (!timelineTime || !timelineTitle.trim()) return;
+    if (!normalizeTime(timelineTime) || !timelineTitle.trim()) return;
 
     setTimelineItems((current) =>
-      [...current, { id: createId(), time: timelineTime, title: timelineTitle.trim() }].sort((a, b) =>
+      [...current, { id: createId(), time: normalizeTime(timelineTime)!, title: timelineTitle.trim() }].sort((a, b) =>
         a.time.localeCompare(b.time),
       ),
     );
@@ -210,7 +219,7 @@ export function EventForm({
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim()) return;\n    if ((startTime && !normalizeTime(startTime)) || (endTime && !normalizeTime(endTime)) || (timelineTime && !normalizeTime(timelineTime))) return;
 
     const now = new Date().toISOString();
     const selectedTagNames = orderedTags
@@ -224,8 +233,8 @@ export function EventForm({
       date: eventStartDate,
       endDate: normalizedEndDate,
       title: title.trim(),
-      startTime: startTime || undefined,
-      endTime: endTime || undefined,
+      startTime: normalizeTime(startTime),
+      endTime: normalizeTime(endTime),
       breakMinutes:
         breakMinutes.trim() && Number.isInteger(parsedBreakMinutes) && parsedBreakMinutes >= 0
           ? parsedBreakMinutes
@@ -309,11 +318,11 @@ export function EventForm({
         </label>
         <label>
           開始
-          <input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} />
+          <input type="text" inputMode="numeric" pattern="([01]?[0-9]|2[0-3]):?[0-5][0-9]" placeholder="09:30" title="HH:MM または HHMM" value={startTime} onChange={(event) => setStartTime(event.target.value)} />
         </label>
         <label>
           終了
-          <input type="time" value={endTime} onChange={(event) => setEndTime(event.target.value)} />
+          <input type="text" inputMode="numeric" pattern="([01]?[0-9]|2[0-3]):?[0-5][0-9]" placeholder="18:00" title="HH:MM または HHMM" value={endTime} onChange={(event) => setEndTime(event.target.value)} />
         </label>
       </div>
 
@@ -373,7 +382,7 @@ export function EventForm({
           <span>予定内の流れ</span>
         </div>
         <div className="timeline-create-row">
-          <input type="time" value={timelineTime} onChange={(event) => setTimelineTime(event.target.value)} />
+          <input type="text" inputMode="numeric" pattern="([01]?[0-9]|2[0-3]):?[0-5][0-9]" placeholder="12:00" title="HH:MM または HHMM" value={timelineTime} onChange={(event) => setTimelineTime(event.target.value)} />
           <input
             value={timelineTitle}
             onChange={(event) => setTimelineTitle(event.target.value)}
