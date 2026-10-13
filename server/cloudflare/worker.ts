@@ -1,10 +1,12 @@
 import type { CalendarDataSnapshot } from '../../src/repositories/calendarRepository';
 import { defaultCalendarSnapshot, parseCalendarSnapshot } from '../core/calendarSnapshot';
 import { json, jsonError } from '../core/http';
+import { createCalendarBackup, type BackupRow } from '../core/calendarBackup';
 
 type Env = {
   DB: D1Database;
   IMAGES: R2Bucket;
+  BACKUPS: R2Bucket;
   ASSETS: Fetcher;
   WRITE_TOKEN: string;
 };
@@ -29,6 +31,9 @@ const maxImageBytes = 2 * 1024 * 1024;
 
 // Cloudflare専用のentrypointです。アプリ本体のHTTP契約はserver/core側へ逃がします。
 export default {
+  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(backupCalendarSnapshots(env));
+  },
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
@@ -203,4 +208,28 @@ function requireWriteToken(request: Request, env: Env): Response | undefined {
   }
 
   return jsonError('unauthorized', 'Write token is invalid.', 401);
+}
+
+async function backupCalendarSnapshots(env: Env): Promise<void> {
+  const rows: BackupRow[] = [];
+  let offset = 0;
+  const pageSize = 100;
+  for (;;) {
+    const result = await env.DB.prepare(
+      'SELECT calendar_id, snapshot_json, created_at, updated_at FROM calendar_snapshots ORDER BY calendar_id LIMIT ? OFFSET ?',
+    ).bind(pageSize, offset).all<BackupRow>();
+    const page = result.results ?? [];
+    rows.push(...page);
+    if (page.length < pageSize) break;
+    offset += page.length;
+  }
+  const createdAt = new Date().toISOString();
+  const backup = createCalendarBackup(rows, createdAt);
+  const dateKey = createdAt.slice(0, 10);
+  const objectKey = `d1-calendar-snapshots/${dateKey}/${createdAt.replace(/[:.]/g, '-')}.json`;
+  await env.BACKUPS.put(objectKey, JSON.stringify(backup), {
+    httpMetadata: { contentType: 'application/json' },
+    customMetadata: { version: '1', rowCount: String(rows.length) },
+  });
+  console.log(`D1 backup saved: ${objectKey} (${rows.length} rows)`);
 }
