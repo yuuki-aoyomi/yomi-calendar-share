@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import { createCalendarBackup, parseCalendarBackup } from '../server/core/calendarBackup.ts';
 import { getJapaneseHoliday } from '../src/utils/japaneseHolidays.ts';
 import test from 'node:test';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { buildCreditCardPaymentSchedules } from '../src/utils/creditCard.ts';
 import { matchesHighlightedTag } from '../src/utils/calendarHighlight.ts';
 import type { CalendarEvent, CreditCardSetting, MoneyRecord } from '../src/types/calendar.ts';
@@ -67,4 +71,19 @@ test('Japanese holidays include substitute holidays', () => {
   assert.equal(getJapaneseHoliday('2026-05-03'), '憲法記念日');
   assert.equal(getJapaneseHoliday('2026-05-06'), '振替休日');
   assert.equal(getJapaneseHoliday('2026-10-13'), undefined);
+});
+
+test('restore CLI dry-run validates without touching D1', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'yomi-restore-test-'));
+  try {
+    const file = join(dir, 'backup.json');
+    writeFileSync(file, JSON.stringify(createCalendarBackup([
+      { calendar_id: 'main', snapshot_json: JSON.stringify({ events: [{ title: '復元確認' }] }), created_at: '2026-10-13', updated_at: '2026-10-13' },
+    ], '2026-10-13T18:00:00Z')));
+    const output = execFileSync(process.execPath, ['scripts/restore-d1.mjs', file], { encoding: 'utf8' });
+    assert.match(output, /Dry run only/);
+    assert.throws(() => execFileSync(process.execPath, ['scripts/restore-d1.mjs', file, '--remote'], { stdio: 'pipe' }));
+    writeFileSync(file, JSON.stringify({ format: 'yomi-calendar-d1-backup', version: 1, createdAt: 'now', rowCount: 1, rows: [] }));
+    assert.throws(() => execFileSync(process.execPath, ['scripts/restore-d1.mjs', file], { stdio: 'pipe' }));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
