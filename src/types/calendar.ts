@@ -2,12 +2,13 @@ export type CalendarMode = 'schedule' | 'money' | 'love';
 
 export type EventCategory = 'schedule' | 'diary' | 'todo' | 'detail' | 'photo';
 
-export type RecurrenceFrequency = 'weekly' | 'monthly';
+export type RecurrenceFrequency = 'daily' | 'weekly' | 'monthly';
 
 export type RecurrenceRule = {
   frequency: RecurrenceFrequency;
   interval: number;
   until?: string;
+  weekdays?: number[];
 };
 
 export type CalendarTagType = 'person' | 'work' | 'credit-card' | 'custom';
