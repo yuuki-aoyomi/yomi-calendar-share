@@ -45,6 +45,7 @@ type RemoteCalendarState = {
 };
 
 let remoteCalendarState: RemoteCalendarState | undefined;
+let reloadRequired = false;
 
 const apiUrl = (path: string) => `${appConfig.apiBaseUrl}${path}`;
 
@@ -95,6 +96,7 @@ export const loadCalendarSnapshot = async (calendarId: string, writeToken: strin
     version: payload.version,
     snapshot: payload.snapshot,
   };
+  reloadRequired = false;
   return payload.snapshot;
 };
 
@@ -123,6 +125,8 @@ export const saveCalendarSnapshot = async (
   snapshot: CalendarDataSnapshot,
   writeToken: string,
 ): Promise<void> => {
+  if (reloadRequired) return;
+
   const baseState = remoteCalendarState?.calendarId === calendarId ? remoteCalendarState : undefined;
   const expectedVersion = baseState?.version ?? 0;
   const response = await putCalendarSnapshot(calendarId, snapshot, writeToken, expectedVersion);
@@ -141,11 +145,12 @@ export const saveCalendarSnapshot = async (
   const merged = mergeCalendarSnapshots(baseState.snapshot, snapshot, conflict.snapshot);
 
   if (merged.conflicts.length > 0) {
+    reloadRequired = true;
     const hasDeleteConflict = merged.conflicts.some((item) => item.kind === 'delete_vs_edit');
     showReloadAlert(
       hasDeleteConflict
-        ? '他の端末との更新競合を検知しました。削除と編集が衝突しているため自動解決できません。データを保護するため保存を停止しました。画面を再読み込みして最新状態を確認してください。'
-        : '他の端末との更新競合を検知しました。同じデータが両方で編集されているため自動解決できません。データを保護するため保存を停止しました。画面を再読み込みして最新状態を確認してください。',
+        ? '他の端末との更新競合を検知しました。削除と編集が衝突しているため自動解決できません。データを保護するため、このタブからの保存を停止しました。画面を再読み込みして最新状態を確認してください。'
+        : '他の端末との更新競合を検知しました。同じデータが両方で編集されているため自動解決できません。データを保護するため、このタブからの保存を停止しました。画面を再読み込みして最新状態を確認してください。',
     );
     return;
   }
@@ -158,7 +163,8 @@ export const saveCalendarSnapshot = async (
   );
 
   if (!retryResponse.ok) {
-    showReloadAlert('同期中にさらに別の更新が行われました。データを保護するため保存を停止しました。画面を再読み込みしてください。');
+    reloadRequired = true;
+    showReloadAlert('同期中にさらに別の更新が行われました。データを保護するため、このタブからの保存を停止しました。画面を再読み込みしてください。');
     return;
   }
 
@@ -168,7 +174,8 @@ export const saveCalendarSnapshot = async (
     version: retryPayload.version,
     snapshot: merged.snapshot,
   };
-  showReloadAlert('他の端末の更新を自動的に差分マージしました。最新の内容を画面へ反映するため、再読み込みしてください。');
+  reloadRequired = true;
+  showReloadAlert('他の端末の更新を自動的に差分マージしました。最新の内容を画面へ反映するため、このタブからの保存を停止しています。再読み込みしてください。');
 };
 
 export const uploadDailyPhoto = async ({
