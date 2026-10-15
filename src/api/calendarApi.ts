@@ -1,9 +1,26 @@
 import { appConfig } from '../config/appConfig';
 import type { CalendarDataSnapshot } from '../repositories/calendarRepository';
+import { mergeCalendarSnapshots } from '../utils/calendarSync';
 
 type CalendarSnapshotPayload = {
   calendarId: string;
   snapshot: CalendarDataSnapshot;
+  version: number;
+};
+
+type CalendarSavePayload = {
+  ok: true;
+  version: number;
+};
+
+type CalendarConflictPayload = {
+  error?: {
+    code?: string;
+    message?: string;
+  };
+  calendarId: string;
+  snapshot: CalendarDataSnapshot;
+  version: number;
 };
 
 type ImageUploadPayload = {
@@ -20,6 +37,15 @@ type ApiErrorPayload = {
   };
   message?: string;
 };
+
+type RemoteCalendarState = {
+  calendarId: string;
+  version: number;
+  snapshot: CalendarDataSnapshot;
+};
+
+let remoteCalendarState: RemoteCalendarState | undefined;
+let reloadRequired = false;
 
 const apiUrl = (path: string) => `${appConfig.apiBaseUrl}${path}`;
 
@@ -65,7 +91,33 @@ export const loadCalendarSnapshot = async (calendarId: string, writeToken: strin
   }
 
   const payload = (await response.json()) as CalendarSnapshotPayload;
+  remoteCalendarState = {
+    calendarId,
+    version: payload.version,
+    snapshot: payload.snapshot,
+  };
+  reloadRequired = false;
   return payload.snapshot;
+};
+
+const putCalendarSnapshot = async (
+  calendarId: string,
+  snapshot: CalendarDataSnapshot,
+  writeToken: string,
+  expectedVersion: number,
+): Promise<Response> => fetch(apiUrl(`/api/calendar/${encodeURIComponent(calendarId)}`), {
+  method: 'PUT',
+  headers: {
+    authorization: `Bearer ${writeToken}`,
+    'content-type': 'application/json',
+  },
+  body: JSON.stringify({ snapshot, expectedVersion }),
+});
+
+const showReloadAlert = (message: string) => {
+  if (typeof window !== 'undefined') {
+    window.alert(message);
+  }
 };
 
 export const saveCalendarSnapshot = async (
@@ -73,18 +125,57 @@ export const saveCalendarSnapshot = async (
   snapshot: CalendarDataSnapshot,
   writeToken: string,
 ): Promise<void> => {
-  const response = await fetch(apiUrl(`/api/calendar/${encodeURIComponent(calendarId)}`), {
-    method: 'PUT',
-    headers: {
-      authorization: `Bearer ${writeToken}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({ snapshot }),
-  });
+  if (reloadRequired) return;
 
-  if (!response.ok) {
+  const baseState = remoteCalendarState?.calendarId === calendarId ? remoteCalendarState : undefined;
+  const expectedVersion = baseState?.version ?? 0;
+  const response = await putCalendarSnapshot(calendarId, snapshot, writeToken, expectedVersion);
+
+  if (response.ok) {
+    const payload = (await response.json()) as CalendarSavePayload;
+    remoteCalendarState = { calendarId, version: payload.version, snapshot };
+    return;
+  }
+
+  if (response.status !== 409 || !baseState) {
     throw new Error('カレンダーデータの保存に失敗しました。');
   }
+
+  const conflict = (await response.json()) as CalendarConflictPayload;
+  const merged = mergeCalendarSnapshots(baseState.snapshot, snapshot, conflict.snapshot);
+
+  if (merged.conflicts.length > 0) {
+    reloadRequired = true;
+    const hasDeleteConflict = merged.conflicts.some((item) => item.kind === 'delete_vs_edit');
+    showReloadAlert(
+      hasDeleteConflict
+        ? '他の端末との更新競合を検知しました。削除と編集が衝突しているため自動解決できません。データを保護するため、このタブからの保存を停止しました。画面を再読み込みして最新状態を確認してください。'
+        : '他の端末との更新競合を検知しました。同じデータが両方で編集されているため自動解決できません。データを保護するため、このタブからの保存を停止しました。画面を再読み込みして最新状態を確認してください。',
+    );
+    return;
+  }
+
+  const retryResponse = await putCalendarSnapshot(
+    calendarId,
+    merged.snapshot,
+    writeToken,
+    conflict.version,
+  );
+
+  if (!retryResponse.ok) {
+    reloadRequired = true;
+    showReloadAlert('同期中にさらに別の更新が行われました。データを保護するため、このタブからの保存を停止しました。画面を再読み込みしてください。');
+    return;
+  }
+
+  const retryPayload = (await retryResponse.json()) as CalendarSavePayload;
+  remoteCalendarState = {
+    calendarId,
+    version: retryPayload.version,
+    snapshot: merged.snapshot,
+  };
+  reloadRequired = true;
+  showReloadAlert('他の端末の更新を自動的に差分マージしました。最新の内容を画面へ反映するため、このタブからの保存を停止しています。再読み込みしてください。');
 };
 
 export const uploadDailyPhoto = async ({

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createCalendarBackup, parseCalendarBackup } from '../server/core/calendarBackup.ts';
 import { getJapaneseHoliday } from '../src/utils/japaneseHolidays.ts';
 import { normalizeTime, validateEventForm } from '../src/utils/eventFormValidation.ts';
+import { mergeCalendarSnapshots } from '../src/utils/calendarSync.ts';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -10,6 +11,7 @@ import { join } from 'node:path';
 import { buildCreditCardPaymentSchedules } from '../src/utils/creditCard.ts';
 import { matchesHighlightedTag } from '../src/utils/calendarHighlight.ts';
 import type { CalendarEvent, CreditCardSetting, MoneyRecord } from '../src/types/calendar.ts';
+import type { CalendarDataSnapshot } from '../src/repositories/calendarRepository.ts';
 
 const card = (id: string, closingDay: number, paymentDay: number): CreditCardSetting => ({
   id, name: id, tagId: id, closingDay, paymentDay, createdAt: '', updatedAt: '',
@@ -19,6 +21,27 @@ const expense = (id: string, date: string, amount: number, creditCardId: string,
 });
 const event = (tagIds: string[]): CalendarEvent => ({
   id: 'event', date: '2026-10-13', title: 'Test', category: 'schedule', tagIds, tags: [], timelineItems: [], createdAt: '', updatedAt: '',
+});
+const snapshot = (events: CalendarEvent[] = []): CalendarDataSnapshot => ({
+  events,
+  moneyRecords: [],
+  loveLogs: [],
+  tags: [],
+  partTimeJobs: [],
+  creditCards: [],
+  subscriptions: [],
+  dailyPhotos: [],
+});
+const syncEvent = (id: string, title: string, updatedAt = '2026-10-15T00:00:00Z'): CalendarEvent => ({
+  id,
+  date: '2026-10-15',
+  title,
+  category: 'schedule',
+  tagIds: [],
+  tags: [],
+  timelineItems: [],
+  createdAt: '2026-10-15T00:00:00Z',
+  updatedAt,
 });
 
 test('credit card payments are grouped by card and payment month', () => {
@@ -123,4 +146,48 @@ test('event form validation reports the field that prevents saving', () => {
   );
   assert.match(validateEventForm({ ...base, timelineTime: '1200' }).timelineTitle ?? '', /内容を入力/);
   assert.match(validateEventForm({ ...base, timelineTitle: '開場' }).timelineTime ?? '', /時刻を入力/);
+});
+
+test('three-way merge combines independent edits from different clients', () => {
+  const base = snapshot([syncEvent('a', 'A'), syncEvent('b', 'B')]);
+  const local = snapshot([syncEvent('a', 'A local'), syncEvent('b', 'B')]);
+  const remote = snapshot([syncEvent('a', 'A'), syncEvent('b', 'B remote')]);
+  const result = mergeCalendarSnapshots(base, local, remote);
+
+  assert.deepEqual(result.conflicts, []);
+  assert.equal(result.snapshot.events.find((item) => item.id === 'a')?.title, 'A local');
+  assert.equal(result.snapshot.events.find((item) => item.id === 'b')?.title, 'B remote');
+});
+
+test('three-way merge preserves a deletion when the other client did not edit the item', () => {
+  const original = syncEvent('a', 'A');
+  const result = mergeCalendarSnapshots(snapshot([original]), snapshot([]), snapshot([original]));
+
+  assert.deepEqual(result.conflicts, []);
+  assert.deepEqual(result.snapshot.events, []);
+});
+
+test('three-way merge detects delete-versus-edit conflicts', () => {
+  const original = syncEvent('a', 'A');
+  const result = mergeCalendarSnapshots(
+    snapshot([original]),
+    snapshot([]),
+    snapshot([syncEvent('a', 'A remote edit')]),
+  );
+
+  assert.equal(result.conflicts.length, 1);
+  assert.equal(result.conflicts[0].kind, 'delete_vs_edit');
+  assert.equal(result.conflicts[0].id, 'a');
+});
+
+test('three-way merge detects concurrent edits to the same item', () => {
+  const original = syncEvent('a', 'A');
+  const result = mergeCalendarSnapshots(
+    snapshot([original]),
+    snapshot([syncEvent('a', 'A local edit')]),
+    snapshot([syncEvent('a', 'A remote edit')]),
+  );
+
+  assert.equal(result.conflicts.length, 1);
+  assert.equal(result.conflicts[0].kind, 'concurrent_edit');
 });
