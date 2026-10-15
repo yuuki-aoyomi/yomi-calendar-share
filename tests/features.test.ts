@@ -198,6 +198,17 @@ test('weekly recurrence interval applies to the selected weekday set', () => {
   assert.equal(eventOccursOnDate(item, '2026-10-30'), true);
 });
 
+test('biweekly recurrence is anchored to calendar weeks, not seven-day windows from the start day', () => {
+  const item = {
+    ...recurringEvent({ frequency: 'weekly', interval: 2, weekdays: [1, 5] }),
+    date: '2026-10-14', // Wednesday
+  };
+
+  assert.equal(eventOccursOnDate(item, '2026-10-16'), true); // Friday in the start week
+  assert.equal(eventOccursOnDate(item, '2026-10-19'), false); // Monday in the next week
+  assert.equal(eventOccursOnDate(item, '2026-10-30'), true); // Friday two weeks later
+});
+
 test('three-way merge combines independent edits from different clients', () => {
   const base = snapshot([syncEvent('a', 'A'), syncEvent('b', 'B')]);
   const local = snapshot([syncEvent('a', 'A local'), syncEvent('b', 'B')]);
