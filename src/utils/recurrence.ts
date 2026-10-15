@@ -40,10 +40,18 @@ const isRecurringStartOnDate = (event: CalendarEvent, dateKey: string): boolean 
   if (event.recurrence.until && targetDate > parseDateKey(event.recurrence.until)) return false;
 
   const interval = Math.max(event.recurrence.interval || 1, 1);
+  const diffDays = getDaysBetween(startDate, targetDate);
+
+  if (event.recurrence.frequency === 'daily') {
+    return diffDays % interval === 0;
+  }
 
   if (event.recurrence.frequency === 'weekly') {
-    const diffDays = getDaysBetween(startDate, targetDate);
-    return diffDays % (7 * interval) === 0;
+    const weekdays = event.recurrence.weekdays?.length
+      ? event.recurrence.weekdays
+      : [startDate.getDay()];
+    const weekDiff = Math.floor(diffDays / 7);
+    return weekDiff % interval === 0 && weekdays.includes(targetDate.getDay());
   }
 
   const monthDiff = getMonthDiff(startDate, targetDate);
