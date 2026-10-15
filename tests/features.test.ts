@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createCalendarBackup, parseCalendarBackup } from '../server/core/calendarBackup.ts';
 import { getJapaneseHoliday } from '../src/utils/japaneseHolidays.ts';
+import { normalizeTime, validateEventForm } from '../src/utils/eventFormValidation.ts';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -86,4 +87,40 @@ test('restore CLI dry-run validates without touching D1', () => {
     writeFileSync(file, JSON.stringify({ format: 'yomi-calendar-d1-backup', version: 1, createdAt: 'now', rowCount: 1, rows: [] }));
     assert.throws(() => execFileSync(process.execPath, ['scripts/restore-d1.mjs', file], { stdio: 'pipe' }));
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('time input accepts HH:MM and HHMM and rejects invalid values', () => {
+  assert.equal(normalizeTime('09:30'), '09:30');
+  assert.equal(normalizeTime('930'), '09:30');
+  assert.equal(normalizeTime('0930'), '09:30');
+  assert.equal(normalizeTime('23:59'), '23:59');
+  assert.equal(normalizeTime('24:00'), undefined);
+  assert.equal(normalizeTime('12:60'), undefined);
+  assert.equal(normalizeTime('9:3'), undefined);
+});
+
+test('event form validation reports the field that prevents saving', () => {
+  const base = {
+    title: 'バイト',
+    eventStartDate: '2026-10-15',
+    endDate: '',
+    startTime: '09:30',
+    endTime: '1800',
+    breakMinutes: '60',
+    recurrence: 'none' as const,
+    recurrenceUntil: '',
+    timelineTime: '',
+    timelineTitle: '',
+  };
+
+  assert.deepEqual(validateEventForm(base), {});
+  assert.match(validateEventForm({ ...base, startTime: '25:00' }).startTime ?? '', /時刻が正しくありません/);
+  assert.match(validateEventForm({ ...base, endDate: '2026-10-14' }).endDate ?? '', /開始日/);
+  assert.match(validateEventForm({ ...base, breakMinutes: '-1' }).breakMinutes ?? '', /0以上の整数/);
+  assert.match(
+    validateEventForm({ ...base, recurrence: 'weekly', recurrenceUntil: '2026-10-14' }).recurrenceUntil ?? '',
+    /開始日/,
+  );
+  assert.match(validateEventForm({ ...base, timelineTime: '1200' }).timelineTitle ?? '', /内容を入力/);
+  assert.match(validateEventForm({ ...base, timelineTitle: '開場' }).timelineTime ?? '', /時刻を入力/);
 });
