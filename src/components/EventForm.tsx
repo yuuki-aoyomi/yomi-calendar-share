@@ -45,7 +45,22 @@ const tagColors: Record<CalendarTagType, string> = {
   custom: '#7c6ee6',
 };
 
+const weekdayOptions = [
+  { value: 1, label: '月' },
+  { value: 2, label: '火' },
+  { value: 3, label: '水' },
+  { value: 4, label: '木' },
+  { value: 5, label: '金' },
+  { value: 6, label: '土' },
+  { value: 0, label: '日' },
+];
+
 type RecurrenceInput = 'none' | RecurrenceFrequency;
+
+const getWeekdayFromDateKey = (dateKey: string): number => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+};
 
 const getWorkMinutes = (startTime: string, endTime: string): number => {
   const normalizedStart = normalizeTime(startTime);
@@ -91,6 +106,7 @@ export function EventForm({
   const [newTagColor, setNewTagColor] = useState(tagColors.custom);
   const [recurrence, setRecurrence] = useState<RecurrenceInput>('none');
   const [recurrenceUntil, setRecurrenceUntil] = useState('');
+  const [recurrenceWeekdays, setRecurrenceWeekdays] = useState<number[]>([]);
   const [timelineItems, setTimelineItems] = useState<EventTimelineItem[]>([]);
   const [timelineTime, setTimelineTime] = useState('');
   const [timelineTitle, setTimelineTitle] = useState('');
@@ -121,6 +137,7 @@ export function EventForm({
     breakMinutes,
     recurrence,
     recurrenceUntil,
+    recurrenceWeekdays,
     timelineTime,
     timelineTitle,
   });
@@ -137,6 +154,7 @@ export function EventForm({
     setSelectedTagIds([]);
     setRecurrence('none');
     setRecurrenceUntil('');
+    setRecurrenceWeekdays([]);
     setTimelineItems([]);
     setTimelineTime('');
     setTimelineTitle('');
@@ -163,6 +181,13 @@ export function EventForm({
     setSelectedTagIds(editingEvent.tagIds ?? []);
     setRecurrence(editingEvent.recurrence?.frequency ?? 'none');
     setRecurrenceUntil(editingEvent.recurrence?.until ?? '');
+    setRecurrenceWeekdays(
+      editingEvent.recurrence?.frequency === 'weekly'
+        ? editingEvent.recurrence.weekdays?.length
+          ? [...editingEvent.recurrence.weekdays]
+          : [getWeekdayFromDateKey(editingEvent.date)]
+        : [],
+    );
     setTimelineItems(editingEvent.timelineItems ?? []);
     setTimelineTime('');
     setTimelineTitle('');
@@ -173,6 +198,14 @@ export function EventForm({
   const handleToggleTag = (tagId: string) => {
     setSelectedTagIds((current) =>
       current.includes(tagId) ? current.filter((id) => id !== tagId) : [...current, tagId],
+    );
+  };
+
+  const handleToggleRecurrenceWeekday = (weekday: number) => {
+    setRecurrenceWeekdays((current) =>
+      current.includes(weekday)
+        ? current.filter((item) => item !== weekday)
+        : [...current, weekday].sort((a, b) => a - b),
     );
   };
 
@@ -219,6 +252,13 @@ export function EventForm({
     setSelectedTagIds(suggestion.tagIds ?? []);
     setRecurrence(suggestion.recurrence?.frequency ?? 'none');
     setRecurrenceUntil(suggestion.recurrence?.until ?? '');
+    setRecurrenceWeekdays(
+      suggestion.recurrence?.frequency === 'weekly'
+        ? suggestion.recurrence.weekdays?.length
+          ? [...suggestion.recurrence.weekdays]
+          : [getWeekdayFromDateKey(suggestion.date)]
+        : [],
+    );
     setTimelineItems(suggestion.timelineItems ?? []);
   };
 
@@ -275,6 +315,7 @@ export function EventForm({
               frequency: recurrence,
               interval: 1,
               until: recurrenceUntil || undefined,
+              weekdays: recurrence === 'weekly' ? [...recurrenceWeekdays].sort((a, b) => a - b) : undefined,
             },
       timelineItems,
       done: category === 'todo' ? editingEvent?.done ?? false : undefined,
@@ -407,8 +448,18 @@ export function EventForm({
       <div className="form-grid">
         <label>
           繰り返し
-          <select value={recurrence} onChange={(event) => setRecurrence(event.target.value as RecurrenceInput)}>
+          <select
+            value={recurrence}
+            onChange={(event) => {
+              const nextRecurrence = event.target.value as RecurrenceInput;
+              setRecurrence(nextRecurrence);
+              if (nextRecurrence === 'weekly' && recurrenceWeekdays.length === 0) {
+                setRecurrenceWeekdays([getWeekdayFromDateKey(eventStartDate)]);
+              }
+            }}
+          >
             <option value="none">なし</option>
+            <option value="daily">毎日</option>
             <option value="weekly">毎週</option>
             <option value="monthly">毎月</option>
           </select>
@@ -426,6 +477,37 @@ export function EventForm({
           <FieldError id="event-recurrence-until-error" message={formErrors.recurrenceUntil} />
         </label>
       </div>
+
+      {recurrence === 'weekly' && (
+        <div className="field-group">
+          <div className="form-heading small">
+            <h4>曜日</h4>
+            <span>複数選択できます</span>
+          </div>
+          <div
+            className="tag-picker"
+            role="group"
+            aria-label="繰り返す曜日"
+            aria-invalid={submitAttempted && Boolean(formErrors.recurrenceWeekdays)}
+            aria-describedby={submitAttempted && formErrors.recurrenceWeekdays ? 'event-recurrence-weekdays-error' : undefined}
+          >
+            {weekdayOptions.map((option) => (
+              <label key={option.value} className="todo-highlight-setting">
+                <input
+                  type="checkbox"
+                  checked={recurrenceWeekdays.includes(option.value)}
+                  onChange={() => handleToggleRecurrenceWeekday(option.value)}
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+          <FieldError
+            id="event-recurrence-weekdays-error"
+            message={submitAttempted ? formErrors.recurrenceWeekdays : undefined}
+          />
+        </div>
+      )}
 
       <label>
         メモ
