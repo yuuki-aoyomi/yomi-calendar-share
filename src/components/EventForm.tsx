@@ -7,6 +7,7 @@ import type {
   EventTimelineItem,
   RecurrenceFrequency,
 } from '../types/calendar';
+import { normalizeTime, validateEventForm } from '../utils/eventFormValidation';
 import { createId } from '../utils/id';
 import { estimateBreakMinutes } from '../utils/salary';
 import { sortCalendarTags } from '../utils/tags';
@@ -46,26 +47,24 @@ const tagColors: Record<CalendarTagType, string> = {
 
 type RecurrenceInput = 'none' | RecurrenceFrequency;
 
-const normalizeTime = (value: string): string | undefined => {
-  const match = /^(\\d{1,2}):?(\\d{2})$/.exec(value.trim());
-  if (!match) return undefined;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour > 23 || minute > 59) return undefined;
-  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-};
-
 const getWorkMinutes = (startTime: string, endTime: string): number => {
-  if (!startTime || !endTime) return 0;
+  const normalizedStart = normalizeTime(startTime);
+  const normalizedEnd = normalizeTime(endTime);
+  if (!normalizedStart || !normalizedEnd) return 0;
 
-  const [startHour, startMinute] = startTime.split(':').map(Number);
-  const [endHour, endMinute] = endTime.split(':').map(Number);
+  const [startHour, startMinute] = normalizedStart.split(':').map(Number);
+  const [endHour, endMinute] = normalizedEnd.split(':').map(Number);
   const start = startHour * 60 + startMinute;
   const rawEnd = endHour * 60 + endMinute;
   const end = rawEnd <= start ? rawEnd + 24 * 60 : rawEnd;
 
   return Math.max(end - start, 0);
 };
+
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null;
+  return <span id={id} className="error-text" role="alert">! {message}</span>;
+}
 
 // 予定登録用の controlled form です。入力値は React state で管理します。
 export function EventForm({
@@ -95,6 +94,8 @@ export function EventForm({
   const [timelineItems, setTimelineItems] = useState<EventTimelineItem[]>([]);
   const [timelineTime, setTimelineTime] = useState('');
   const [timelineTitle, setTimelineTitle] = useState('');
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [timelineAttempted, setTimelineAttempted] = useState(false);
   const isEditing = Boolean(editingEvent);
   const eventStartDate = editingEvent?.date ?? selectedDate;
   const orderedTags = sortCalendarTags(tags);
@@ -111,6 +112,19 @@ export function EventForm({
     })
     .slice(0, 5);
 
+  const formErrors = validateEventForm({
+    title,
+    eventStartDate,
+    endDate,
+    startTime,
+    endTime,
+    breakMinutes,
+    recurrence,
+    recurrenceUntil,
+    timelineTime,
+    timelineTitle,
+  });
+
   const resetForm = () => {
     setTitle('');
     setEndDate('');
@@ -126,6 +140,8 @@ export function EventForm({
     setTimelineItems([]);
     setTimelineTime('');
     setTimelineTitle('');
+    setSubmitAttempted(false);
+    setTimelineAttempted(false);
   };
 
   useEffect(() => {
@@ -150,6 +166,8 @@ export function EventForm({
     setTimelineItems(editingEvent.timelineItems ?? []);
     setTimelineTime('');
     setTimelineTitle('');
+    setSubmitAttempted(false);
+    setTimelineAttempted(false);
   }, [editingEvent]);
 
   const handleToggleTag = (tagId: string) => {
@@ -205,15 +223,18 @@ export function EventForm({
   };
 
   const handleAddTimelineItem = () => {
-    if (!normalizeTime(timelineTime) || !timelineTitle.trim()) return;
+    setTimelineAttempted(true);
+    const normalizedTimelineTime = normalizeTime(timelineTime);
+    if (!normalizedTimelineTime || !timelineTitle.trim()) return;
 
     setTimelineItems((current) =>
-      [...current, { id: createId(), time: normalizeTime(timelineTime)!, title: timelineTitle.trim() }].sort((a, b) =>
+      [...current, { id: createId(), time: normalizedTimelineTime, title: timelineTitle.trim() }].sort((a, b) =>
         a.time.localeCompare(b.time),
       ),
     );
     setTimelineTime('');
     setTimelineTitle('');
+    setTimelineAttempted(false);
   };
 
   const handleDeleteTimelineItem = (id: string) => {
@@ -222,20 +243,19 @@ export function EventForm({
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!title.trim()) return;
-    if ((startTime && !normalizeTime(startTime)) || (endTime && !normalizeTime(endTime)) || (timelineTime && !normalizeTime(timelineTime))) return;
+    setSubmitAttempted(true);
+    if (Object.keys(formErrors).length > 0) return;
 
     const now = new Date().toISOString();
     const selectedTagNames = orderedTags
       .filter((tag) => selectedTagIds.includes(tag.id))
       .map((tag) => tag.name);
     const parsedBreakMinutes = Number(breakMinutes);
-    const normalizedEndDate = endDate && endDate >= eventStartDate ? endDate : undefined;
 
     onSaveEvent({
       id: editingEvent?.id ?? createId(),
       date: eventStartDate,
-      endDate: normalizedEndDate,
+      endDate: endDate || undefined,
       title: title.trim(),
       startTime: normalizeTime(startTime),
       endTime: normalizeTime(endTime),
@@ -269,9 +289,10 @@ export function EventForm({
 
   const hasWorkTag = tags.some((tag) => selectedTagIds.includes(tag.id) && tag.type === 'work');
   const autoBreakMinutes = estimateBreakMinutes(getWorkMinutes(startTime, endTime));
+  const showTimelineErrors = timelineAttempted || submitAttempted || Boolean(timelineTime.trim() || timelineTitle.trim());
 
   return (
-    <form className="form-card" onSubmit={handleSubmit}>
+    <form className="form-card" onSubmit={handleSubmit} noValidate>
       <div className="form-heading">
         <h3>{isEditing ? '予定を編集' : '予定を追加'}</h3>
         <span>{isEditing ? 'シリーズ全体' : selectedDate}</span>
@@ -280,11 +301,13 @@ export function EventForm({
       <label>
         タイトル
         <input
-          required
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           placeholder="例: バイト"
+          aria-invalid={submitAttempted && Boolean(formErrors.title)}
+          aria-describedby={submitAttempted && formErrors.title ? 'event-title-error' : undefined}
         />
+        <FieldError id="event-title-error" message={submitAttempted ? formErrors.title : undefined} />
       </label>
 
       {eventSuggestions.length > 0 && (
@@ -316,18 +339,40 @@ export function EventForm({
           終了日
           <input
             type="date"
-            min={eventStartDate}
             value={endDate}
             onChange={(event) => setEndDate(event.target.value)}
+            aria-invalid={Boolean(formErrors.endDate)}
+            aria-describedby={formErrors.endDate ? 'event-end-date-error' : undefined}
           />
+          <FieldError id="event-end-date-error" message={formErrors.endDate} />
         </label>
         <label>
           開始
-          <input type="text" inputMode="numeric" pattern="([01]?[0-9]|2[0-3]):?[0-5][0-9]" placeholder="09:30" title="HH:MM または HHMM" value={startTime} onChange={(event) => setStartTime(event.target.value)} />
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder="09:30"
+            title="HH:MM または HHMM"
+            value={startTime}
+            onChange={(event) => setStartTime(event.target.value)}
+            aria-invalid={Boolean(startTime.trim() && formErrors.startTime)}
+            aria-describedby={startTime.trim() && formErrors.startTime ? 'event-start-time-error' : undefined}
+          />
+          <FieldError id="event-start-time-error" message={startTime.trim() ? formErrors.startTime : undefined} />
         </label>
         <label>
           終了
-          <input type="text" inputMode="numeric" pattern="([01]?[0-9]|2[0-3]):?[0-5][0-9]" placeholder="18:00" title="HH:MM または HHMM" value={endTime} onChange={(event) => setEndTime(event.target.value)} />
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder="18:00"
+            title="HH:MM または HHMM"
+            value={endTime}
+            onChange={(event) => setEndTime(event.target.value)}
+            aria-invalid={Boolean(endTime.trim() && formErrors.endTime)}
+            aria-describedby={endTime.trim() && formErrors.endTime ? 'event-end-time-error' : undefined}
+          />
+          <FieldError id="event-end-time-error" message={endTime.trim() ? formErrors.endTime : undefined} />
         </label>
       </div>
 
@@ -336,12 +381,14 @@ export function EventForm({
           休憩時間（分）
           <input
             type="number"
-            min="0"
             value={breakMinutes}
             onChange={(event) => setBreakMinutes(event.target.value)}
             placeholder={`自動: ${autoBreakMinutes}分`}
+            aria-invalid={Boolean(breakMinutes.trim() && formErrors.breakMinutes)}
+            aria-describedby={breakMinutes.trim() && formErrors.breakMinutes ? 'event-break-error' : undefined}
           />
           <span className="helper-text">未入力なら勤務時間から自動計算します。入力するとこの予定だけ上書きします。</span>
+          <FieldError id="event-break-error" message={breakMinutes.trim() ? formErrors.breakMinutes : undefined} />
         </label>
       )}
 
@@ -373,7 +420,10 @@ export function EventForm({
             value={recurrenceUntil}
             disabled={recurrence === 'none'}
             onChange={(event) => setRecurrenceUntil(event.target.value)}
+            aria-invalid={Boolean(formErrors.recurrenceUntil)}
+            aria-describedby={formErrors.recurrenceUntil ? 'event-recurrence-until-error' : undefined}
           />
+          <FieldError id="event-recurrence-until-error" message={formErrors.recurrenceUntil} />
         </label>
       </div>
 
@@ -388,12 +438,29 @@ export function EventForm({
           <span>予定内の流れ</span>
         </div>
         <div className="timeline-create-row">
-          <input type="text" inputMode="numeric" pattern="([01]?[0-9]|2[0-3]):?[0-5][0-9]" placeholder="12:00" title="HH:MM または HHMM" value={timelineTime} onChange={(event) => setTimelineTime(event.target.value)} />
-          <input
-            value={timelineTitle}
-            onChange={(event) => setTimelineTitle(event.target.value)}
-            placeholder="例: 開場・準備"
-          />
+          <div>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="12:00"
+              title="HH:MM または HHMM"
+              value={timelineTime}
+              onChange={(event) => setTimelineTime(event.target.value)}
+              aria-invalid={showTimelineErrors && Boolean(formErrors.timelineTime)}
+              aria-describedby={showTimelineErrors && formErrors.timelineTime ? 'timeline-time-error' : undefined}
+            />
+            <FieldError id="timeline-time-error" message={showTimelineErrors ? formErrors.timelineTime : undefined} />
+          </div>
+          <div>
+            <input
+              value={timelineTitle}
+              onChange={(event) => setTimelineTitle(event.target.value)}
+              placeholder="例: 開場・準備"
+              aria-invalid={showTimelineErrors && Boolean(formErrors.timelineTitle)}
+              aria-describedby={showTimelineErrors && formErrors.timelineTitle ? 'timeline-title-error' : undefined}
+            />
+            <FieldError id="timeline-title-error" message={showTimelineErrors ? formErrors.timelineTitle : undefined} />
+          </div>
           <button type="button" className="ghost-button" onClick={handleAddTimelineItem}>
             追加
           </button>
