@@ -13,6 +13,7 @@ type Env = {
 
 type CalendarSnapshotRow = {
   snapshot_json: string;
+  version: number;
 };
 
 type ImageUploadResponse = {
@@ -66,16 +67,20 @@ async function handleCalendarRequest(request: Request, env: Env, url: URL): Prom
     if (unauthorizedResponse) return unauthorizedResponse;
 
     const row = await env.DB.prepare(
-      'SELECT snapshot_json FROM calendar_snapshots WHERE calendar_id = ?',
+      'SELECT snapshot_json, version FROM calendar_snapshots WHERE calendar_id = ?',
     )
       .bind(calendarId)
       .first<CalendarSnapshotRow>();
 
     if (!row) {
-      return json({ calendarId, snapshot: defaultCalendarSnapshot });
+      return json({ calendarId, snapshot: defaultCalendarSnapshot, version: 0 });
     }
 
-    return json({ calendarId, snapshot: parseCalendarSnapshot(row.snapshot_json) });
+    return json({
+      calendarId,
+      snapshot: parseCalendarSnapshot(row.snapshot_json),
+      version: row.version,
+    });
   }
 
   if (request.method === 'PUT') {
@@ -83,30 +88,72 @@ async function handleCalendarRequest(request: Request, env: Env, url: URL): Prom
 
     if (unauthorizedResponse) return unauthorizedResponse;
 
-    const body = await request.json<{ snapshot?: CalendarDataSnapshot }>().catch(() => undefined);
+    const body = await request.json<{
+      snapshot?: CalendarDataSnapshot;
+      expectedVersion?: number;
+    }>().catch(() => undefined);
 
     if (!body?.snapshot) {
       return jsonError('bad_request', 'snapshot is required.', 400);
     }
+
+    if (!Number.isInteger(body.expectedVersion) || (body.expectedVersion ?? -1) < 0) {
+      return jsonError('bad_request', 'expectedVersion must be a non-negative integer.', 400);
+    }
+
+    const expectedVersion = body.expectedVersion as number;
     const snapshotJson = JSON.stringify(body.snapshot);
 
     if (new TextEncoder().encode(snapshotJson).length > maxSnapshotBytes) {
       return jsonError('payload_too_large', 'snapshot is too large.', 413);
     }
 
-    await env.DB.prepare(
-      `
-        INSERT INTO calendar_snapshots (calendar_id, snapshot_json, created_at, updated_at)
-        VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ON CONFLICT(calendar_id) DO UPDATE SET
-          snapshot_json = excluded.snapshot_json,
-          updated_at = CURRENT_TIMESTAMP
-      `,
-    )
-      .bind(calendarId, snapshotJson)
-      .run();
+    if (expectedVersion === 0) {
+      const result = await env.DB.prepare(
+        `
+          INSERT OR IGNORE INTO calendar_snapshots
+            (calendar_id, snapshot_json, version, created_at, updated_at)
+          VALUES (?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `,
+      )
+        .bind(calendarId, snapshotJson)
+        .run();
 
-    return json({ ok: true });
+      if ((result.meta.changes ?? 0) > 0) {
+        return json({ ok: true as const, version: 1 });
+      }
+    } else {
+      const result = await env.DB.prepare(
+        `
+          UPDATE calendar_snapshots
+          SET snapshot_json = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP
+          WHERE calendar_id = ? AND version = ?
+        `,
+      )
+        .bind(snapshotJson, calendarId, expectedVersion)
+        .run();
+
+      if ((result.meta.changes ?? 0) > 0) {
+        return json({ ok: true as const, version: expectedVersion + 1 });
+      }
+    }
+
+    const current = await env.DB.prepare(
+      'SELECT snapshot_json, version FROM calendar_snapshots WHERE calendar_id = ?',
+    )
+      .bind(calendarId)
+      .first<CalendarSnapshotRow>();
+
+    return json({
+      ok: false as const,
+      error: {
+        code: 'version_conflict',
+        message: 'Calendar data was updated by another client.',
+      },
+      calendarId,
+      snapshot: current ? parseCalendarSnapshot(current.snapshot_json) : defaultCalendarSnapshot,
+      version: current?.version ?? 0,
+    }, 409);
   }
 
   return jsonError('method_not_allowed', 'Unsupported calendar method.', 405);
