@@ -3,6 +3,7 @@ import { createCalendarBackup, parseCalendarBackup } from '../server/core/calend
 import { getJapaneseHoliday } from '../src/utils/japaneseHolidays.ts';
 import { normalizeTime, validateEventForm } from '../src/utils/eventFormValidation.ts';
 import { mergeCalendarSnapshots } from '../src/utils/calendarSync.ts';
+import { eventOccursOnDate } from '../src/utils/recurrence.ts';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -42,6 +43,18 @@ const syncEvent = (id: string, title: string, updatedAt = '2026-10-15T00:00:00Z'
   timelineItems: [],
   createdAt: '2026-10-15T00:00:00Z',
   updatedAt,
+});
+const recurringEvent = (recurrence: CalendarEvent['recurrence']): CalendarEvent => ({
+  id: 'recurring',
+  date: '2026-10-12',
+  title: 'Recurring',
+  category: 'schedule',
+  tagIds: [],
+  tags: [],
+  timelineItems: [],
+  recurrence,
+  createdAt: '',
+  updatedAt: '',
 });
 
 test('credit card payments are grouped by card and payment month', () => {
@@ -141,11 +154,48 @@ test('event form validation reports the field that prevents saving', () => {
   assert.match(validateEventForm({ ...base, endDate: '2026-10-14' }).endDate ?? '', /開始日/);
   assert.match(validateEventForm({ ...base, breakMinutes: '-1' }).breakMinutes ?? '', /0以上の整数/);
   assert.match(
-    validateEventForm({ ...base, recurrence: 'weekly', recurrenceUntil: '2026-10-14' }).recurrenceUntil ?? '',
+    validateEventForm({ ...base, recurrence: 'weekly', recurrenceUntil: '2026-10-14', recurrenceWeekdays: [4] }).recurrenceUntil ?? '',
     /開始日/,
+  );
+  assert.match(
+    validateEventForm({ ...base, recurrence: 'weekly', recurrenceWeekdays: [] }).recurrenceWeekdays ?? '',
+    /1つ以上/,
   );
   assert.match(validateEventForm({ ...base, timelineTime: '1200' }).timelineTitle ?? '', /内容を入力/);
   assert.match(validateEventForm({ ...base, timelineTitle: '開場' }).timelineTime ?? '', /時刻を入力/);
+});
+
+test('daily recurrence occurs every day from the start date', () => {
+  const item = recurringEvent({ frequency: 'daily', interval: 1 });
+  assert.equal(eventOccursOnDate(item, '2026-10-12'), true);
+  assert.equal(eventOccursOnDate(item, '2026-10-13'), true);
+  assert.equal(eventOccursOnDate(item, '2026-10-18'), true);
+  assert.equal(eventOccursOnDate(item, '2026-10-11'), false);
+});
+
+test('weekly recurrence can occur on multiple selected weekdays', () => {
+  const item = recurringEvent({ frequency: 'weekly', interval: 1, weekdays: [1, 3, 5] });
+  assert.equal(eventOccursOnDate(item, '2026-10-12'), true); // Monday
+  assert.equal(eventOccursOnDate(item, '2026-10-14'), true); // Wednesday
+  assert.equal(eventOccursOnDate(item, '2026-10-16'), true); // Friday
+  assert.equal(eventOccursOnDate(item, '2026-10-15'), false); // Thursday
+  assert.equal(eventOccursOnDate(item, '2026-10-19'), true); // next Monday
+});
+
+test('legacy weekly recurrence without weekdays keeps the original weekday', () => {
+  const item = recurringEvent({ frequency: 'weekly', interval: 1 });
+  assert.equal(eventOccursOnDate(item, '2026-10-12'), true);
+  assert.equal(eventOccursOnDate(item, '2026-10-13'), false);
+  assert.equal(eventOccursOnDate(item, '2026-10-19'), true);
+});
+
+test('weekly recurrence interval applies to the selected weekday set', () => {
+  const item = recurringEvent({ frequency: 'weekly', interval: 2, weekdays: [1, 5] });
+  assert.equal(eventOccursOnDate(item, '2026-10-12'), true);
+  assert.equal(eventOccursOnDate(item, '2026-10-16'), true);
+  assert.equal(eventOccursOnDate(item, '2026-10-19'), false);
+  assert.equal(eventOccursOnDate(item, '2026-10-26'), true);
+  assert.equal(eventOccursOnDate(item, '2026-10-30'), true);
 });
 
 test('three-way merge combines independent edits from different clients', () => {
