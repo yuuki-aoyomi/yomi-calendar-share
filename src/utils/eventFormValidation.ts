@@ -9,7 +9,7 @@ export type EventFormValidationInput = {
   breakMinutes: string;
   recurrence: RecurrenceInput;
   recurrenceUntil: string;
-  recurrenceWeekdays: number[];
+  recurrenceWeekdays?: number[];
   timelineTime: string;
   timelineTitle: string;
 };
@@ -67,7 +67,7 @@ export const validateEventForm = (input: EventFormValidationInput): EventFormErr
     errors.recurrenceUntil = `繰り返し終了日は開始日（${input.eventStartDate}）以降を指定してください。`;
   }
 
-  if (input.recurrence === 'weekly' && input.recurrenceWeekdays.length === 0) {
+  if (input.recurrence === 'weekly' && (input.recurrenceWeekdays?.length ?? 0) === 0) {
     errors.recurrenceWeekdays = '繰り返す曜日を1つ以上選択してください。';
   }
 
