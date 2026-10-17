@@ -22,6 +22,8 @@ import type {
   Subscription,
 } from './types/calendar';
 import { getMonthKey, toDateKey } from './utils/date';
+import { persistRemoteSnapshot } from './utils/remoteSave';
+import { getHighlightedPendingTodos } from './utils/todo';
 
 const todayKey = toDateKey(new Date());
 const calendarId = appConfig.calendarId;
@@ -29,6 +31,7 @@ const remoteApiEnabled = shouldUseRemoteApi();
 const localDataEnabled = !remoteApiEnabled;
 
 export type VisualWeather = 'sunny' | 'rain' | 'thunder' | 'cloudy' | 'snow' | 'hail';
+type SyncStatus = 'saved' | 'saving' | 'offline' | 'failed' | 'reload-required';
 
 const getTimePeriod = (): 'morning' | 'day' | 'evening' | 'night' => {
   const hour = new Date().getHours();
@@ -36,6 +39,14 @@ const getTimePeriod = (): 'morning' | 'day' | 'evening' | 'night' => {
   if (hour >= 11 && hour < 16) return 'day';
   if (hour >= 16 && hour < 19) return 'evening';
   return 'night';
+};
+
+const syncStatusText: Record<SyncStatus, string> = {
+  saved: '保存済み',
+  saving: '保存中',
+  offline: 'オフライン',
+  failed: '保存失敗',
+  'reload-required': '競合・再読み込み必要',
 };
 
 function App() {
@@ -107,7 +118,15 @@ function App() {
   const [timePeriod, setTimePeriod] = useState(getTimePeriod);
   const [isRemoteLoaded, setIsRemoteLoaded] = useState(!remoteApiEnabled);
   const [remoteLoadError, setRemoteLoadError] = useState('');
+  const [remoteSaveError, setRemoteSaveError] = useState('');
+  const [remoteSaveRetryToken, setRemoteSaveRetryToken] = useState(0);
+  const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('saved');
   const lastSavedRemoteSnapshot = useRef('');
+  const pendingHighlightedTodos = useMemo(
+    () => getHighlightedPendingTodos(events, toDateKey(new Date())),
+    [events, timePeriod],
+  );
 
   const handleSelectDate = (dateKey: string) => {
     setSelectedDate(dateKey);
@@ -129,8 +148,29 @@ function App() {
 
   useEffect(() => {
     if (!remoteApiEnabled) return;
+
+    const handleOnline = () => {
+      setIsOnline(true);
+      setRemoteSaveRetryToken((current) => current + 1);
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      setSyncStatus('offline');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!remoteApiEnabled) return;
     setIsRemoteLoaded(false);
     setRemoteLoadError('');
+    setRemoteSaveError('');
 
     if (!writeToken.trim()) {
       lastSavedRemoteSnapshot.current = '';
@@ -153,6 +193,8 @@ function App() {
         setDailyPhotos(snapshot.dailyPhotos);
         lastSavedRemoteSnapshot.current = JSON.stringify(snapshot);
         setRemoteLoadError('');
+        setRemoteSaveError('');
+        setSyncStatus(isOnline ? 'saved' : 'offline');
         setIsRemoteLoaded(true);
       })
       .catch(() => {
@@ -167,6 +209,7 @@ function App() {
       isCancelled = true;
     };
   }, [
+    isOnline,
     setCreditCards,
     setDailyPhotos,
     setEvents,
@@ -181,6 +224,13 @@ function App() {
   useEffect(() => {
     if (!remoteApiEnabled || !isRemoteLoaded) return;
     if (!writeToken.trim()) return;
+    if (!isOnline) {
+      setSyncStatus('offline');
+      return;
+    }
+
+    let isCancelled = false;
+    let retryTimeoutId: number | undefined;
 
     const timeoutId = window.setTimeout(() => {
       const snapshot = {
@@ -195,14 +245,65 @@ function App() {
       };
       const snapshotJson = JSON.stringify(snapshot);
 
-      if (snapshotJson === lastSavedRemoteSnapshot.current) return;
+      if (snapshotJson !== lastSavedRemoteSnapshot.current) {
+        setSyncStatus('saving');
+      }
 
-      lastSavedRemoteSnapshot.current = snapshotJson;
-      void saveCalendarSnapshot(calendarId, snapshot, writeToken);
+      void persistRemoteSnapshot({
+        snapshot,
+        lastSavedJson: lastSavedRemoteSnapshot.current,
+        save: (nextSnapshot) => saveCalendarSnapshot(calendarId, nextSnapshot, writeToken),
+      }).then((attempt) => {
+        if (isCancelled) return;
+
+        if (attempt.status === 'unchanged') {
+          setSyncStatus('saved');
+          return;
+        }
+
+        if (attempt.status === 'saved') {
+          lastSavedRemoteSnapshot.current = attempt.savedJson;
+          setRemoteSaveError('');
+          setSyncStatus('saved');
+          return;
+        }
+
+        if (attempt.status === 'reload-required') {
+          setRemoteSaveError('同期競合のため自動保存を停止しています。画面を再読み込みして最新状態を確認してください。');
+          setSyncStatus('reload-required');
+          return;
+        }
+
+        if (attempt.status === 'failed') {
+          setRemoteSaveError('リモート保存に失敗しました。未保存の変更を保持したまま再試行します。');
+          setSyncStatus('failed');
+          retryTimeoutId = window.setTimeout(
+            () => setRemoteSaveRetryToken((current) => current + 1),
+            5000,
+          );
+        }
+      });
     }, 2000);
 
-    return () => window.clearTimeout(timeoutId);
-  }, [creditCards, dailyPhotos, events, isRemoteLoaded, loveLogs, moneyRecords, partTimeJobs, subscriptions, tags, writeToken]);
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(timeoutId);
+      if (retryTimeoutId !== undefined) window.clearTimeout(retryTimeoutId);
+    };
+  }, [
+    creditCards,
+    dailyPhotos,
+    events,
+    isOnline,
+    isRemoteLoaded,
+    loveLogs,
+    moneyRecords,
+    partTimeJobs,
+    remoteSaveRetryToken,
+    subscriptions,
+    tags,
+    writeToken,
+  ]);
 
   if (remoteApiEnabled && (!writeToken.trim() || !isRemoteLoaded)) {
     return (
@@ -291,11 +392,43 @@ function App() {
               {tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}
             </select>
           </div>
-          {events.some((event) => event.category === 'todo' && !event.done && event.highlightTodo !== false && event.date <= toDateKey(new Date())) && (
+          {remoteApiEnabled && (
+            <section className="todo-alert-panel" role="status">
+              <strong>同期: {syncStatusText[syncStatus]}</strong>
+              <span>
+                {syncStatus === 'saved' && 'リモートに保存されています。'}
+                {syncStatus === 'saving' && '変更を保存しています。'}
+                {syncStatus === 'offline' && 'ネットワーク復帰後に未保存変更を再試行します。'}
+                {syncStatus === 'failed' && remoteSaveError}
+                {syncStatus === 'reload-required' && remoteSaveError}
+              </span>
+              {syncStatus === 'failed' && (
+                <button type="button" onClick={() => setRemoteSaveRetryToken((current) => current + 1)}>
+                  今すぐ再試行
+                </button>
+              )}
+              {syncStatus === 'reload-required' && (
+                <button type="button" onClick={() => window.location.reload()}>
+                  再読み込み
+                </button>
+              )}
+            </section>
+          )}
+          {pendingHighlightedTodos.length > 0 && (
             <section className="todo-alert-panel" role="status">
               <strong>未完了のToDoがあります</strong>
-              <span>今日までの未完了: {events.filter((event) => event.category === 'todo' && !event.done && event.highlightTodo !== false && event.date <= toDateKey(new Date())).length}件</span>
-              <button type="button" onClick={() => { const pending = events.filter((event) => event.category === 'todo' && !event.done && event.highlightTodo !== false && event.date <= toDateKey(new Date())).sort((a,b) => a.date.localeCompare(b.date)); if (pending.length) { setSelectedDate(pending[0].date); setCurrentMonth(new Date(pending[0].date + 'T12:00:00')); setActiveMode('schedule'); } }}>最も古い未完了日を表示</button>
+              <span>今日までの未完了: {pendingHighlightedTodos.length}件</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const oldest = pendingHighlightedTodos[0];
+                  setSelectedDate(oldest.date);
+                  setCurrentMonth(new Date(`${oldest.date}T12:00:00`));
+                  setActiveMode('schedule');
+                }}
+              >
+                最も古い未完了日を表示
+              </button>
             </section>
           )}
           <Calendar

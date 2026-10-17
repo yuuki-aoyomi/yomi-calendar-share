@@ -1,6 +1,7 @@
 import { appConfig } from '../config/appConfig';
 import type { CalendarDataSnapshot } from '../repositories/calendarRepository';
 import { mergeCalendarSnapshots } from '../utils/calendarSync';
+import type { RemoteSaveResult } from '../utils/remoteSave';
 
 type CalendarSnapshotPayload = {
   calendarId: string;
@@ -124,8 +125,8 @@ export const saveCalendarSnapshot = async (
   calendarId: string,
   snapshot: CalendarDataSnapshot,
   writeToken: string,
-): Promise<void> => {
-  if (reloadRequired) return;
+): Promise<RemoteSaveResult> => {
+  if (reloadRequired) return 'reload-required';
 
   const baseState = remoteCalendarState?.calendarId === calendarId ? remoteCalendarState : undefined;
   const expectedVersion = baseState?.version ?? 0;
@@ -134,7 +135,7 @@ export const saveCalendarSnapshot = async (
   if (response.ok) {
     const payload = (await response.json()) as CalendarSavePayload;
     remoteCalendarState = { calendarId, version: payload.version, snapshot };
-    return;
+    return 'saved';
   }
 
   if (response.status !== 409 || !baseState) {
@@ -152,7 +153,7 @@ export const saveCalendarSnapshot = async (
         ? '他の端末との更新競合を検知しました。削除と編集が衝突しているため自動解決できません。データを保護するため、このタブからの保存を停止しました。画面を再読み込みして最新状態を確認してください。'
         : '他の端末との更新競合を検知しました。同じデータが両方で編集されているため自動解決できません。データを保護するため、このタブからの保存を停止しました。画面を再読み込みして最新状態を確認してください。',
     );
-    return;
+    return 'reload-required';
   }
 
   const retryResponse = await putCalendarSnapshot(
@@ -165,7 +166,7 @@ export const saveCalendarSnapshot = async (
   if (!retryResponse.ok) {
     reloadRequired = true;
     showReloadAlert('同期中にさらに別の更新が行われました。データを保護するため、このタブからの保存を停止しました。画面を再読み込みしてください。');
-    return;
+    return 'reload-required';
   }
 
   const retryPayload = (await retryResponse.json()) as CalendarSavePayload;
@@ -176,6 +177,7 @@ export const saveCalendarSnapshot = async (
   };
   reloadRequired = true;
   showReloadAlert('他の端末の更新を自動的に差分マージしました。最新の内容を画面へ反映するため、このタブからの保存を停止しています。再読み込みしてください。');
+  return 'reload-required';
 };
 
 export const uploadDailyPhoto = async ({
