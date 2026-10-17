@@ -9,6 +9,7 @@ import type {
 } from '../types/calendar';
 import { normalizeTime, validateEventForm } from '../utils/eventFormValidation';
 import { createId } from '../utils/id';
+import { getRecurrenceInterval, normalizeRecurrenceInterval } from '../utils/recurrenceForm';
 import { estimateBreakMinutes } from '../utils/salary';
 import { sortCalendarTags } from '../utils/tags';
 
@@ -81,7 +82,6 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   return <span id={id} className="error-text" role="alert">! {message}</span>;
 }
 
-// 予定登録用の controlled form です。入力値は React state で管理します。
 export function EventForm({
   selectedDate,
   events,
@@ -105,6 +105,7 @@ export function EventForm({
   const [newTagType, setNewTagType] = useState<CalendarTagType>('custom');
   const [newTagColor, setNewTagColor] = useState(tagColors.custom);
   const [recurrence, setRecurrence] = useState<RecurrenceInput>('none');
+  const [recurrenceInterval, setRecurrenceInterval] = useState(1);
   const [recurrenceUntil, setRecurrenceUntil] = useState('');
   const [recurrenceWeekdays, setRecurrenceWeekdays] = useState<number[]>([]);
   const [timelineItems, setTimelineItems] = useState<EventTimelineItem[]>([]);
@@ -153,6 +154,7 @@ export function EventForm({
     setMemo('');
     setSelectedTagIds([]);
     setRecurrence('none');
+    setRecurrenceInterval(1);
     setRecurrenceUntil('');
     setRecurrenceWeekdays([]);
     setTimelineItems([]);
@@ -172,14 +174,13 @@ export function EventForm({
     setEndDate(editingEvent.endDate ?? '');
     setStartTime(editingEvent.startTime ?? '');
     setEndTime(editingEvent.endTime ?? '');
-    setBreakMinutes(
-      editingEvent.breakMinutes === undefined ? '' : String(editingEvent.breakMinutes),
-    );
+    setBreakMinutes(editingEvent.breakMinutes === undefined ? '' : String(editingEvent.breakMinutes));
     setCategory(editingEvent.category);
     setHighlightTodo(editingEvent.highlightTodo !== false);
     setMemo(editingEvent.memo ?? '');
     setSelectedTagIds(editingEvent.tagIds ?? []);
     setRecurrence(editingEvent.recurrence?.frequency ?? 'none');
+    setRecurrenceInterval(getRecurrenceInterval(editingEvent));
     setRecurrenceUntil(editingEvent.recurrence?.until ?? '');
     setRecurrenceWeekdays(
       editingEvent.recurrence?.frequency === 'weekly'
@@ -244,13 +245,12 @@ export function EventForm({
     setEndDate(suggestion.endDate ?? '');
     setStartTime(suggestion.startTime ?? '');
     setEndTime(suggestion.endTime ?? '');
-    setBreakMinutes(
-      suggestion.breakMinutes === undefined ? '' : String(suggestion.breakMinutes),
-    );
+    setBreakMinutes(suggestion.breakMinutes === undefined ? '' : String(suggestion.breakMinutes));
     setCategory(suggestion.category);
     setMemo(suggestion.memo ?? '');
     setSelectedTagIds(suggestion.tagIds ?? []);
     setRecurrence(suggestion.recurrence?.frequency ?? 'none');
+    setRecurrenceInterval(getRecurrenceInterval(suggestion));
     setRecurrenceUntil(suggestion.recurrence?.until ?? '');
     setRecurrenceWeekdays(
       suggestion.recurrence?.frequency === 'weekly'
@@ -313,7 +313,7 @@ export function EventForm({
           ? undefined
           : {
               frequency: recurrence,
-              interval: 1,
+              interval: normalizeRecurrenceInterval(recurrenceInterval),
               until: recurrenceUntil || undefined,
               weekdays: recurrence === 'weekly' ? [...recurrenceWeekdays].sort((a, b) => a - b) : undefined,
             },
@@ -366,9 +366,7 @@ export function EventForm({
                 onClick={() => handleApplySuggestion(suggestion)}
               >
                 <strong>{suggestion.title}</strong>
-                <span>
-                  {suggestion.startTime || '--:--'} - {suggestion.endTime || '--:--'}
-                </span>
+                <span>{suggestion.startTime || '--:--'} - {suggestion.endTime || '--:--'}</span>
               </button>
             ))}
           </div>
@@ -437,12 +435,15 @@ export function EventForm({
         カテゴリ
         <select value={category} onChange={(event) => setCategory(event.target.value as EventCategory)}>
           {categoryOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
+            <option key={option.value} value={option.value}>{option.label}</option>
           ))}
         </select>
-        {category === 'todo' && <span className="todo-highlight-setting"><input type="checkbox" checked={highlightTodo} onChange={(event) => setHighlightTodo(event.target.checked)} />未完了時に強調表示する</span>}
+        {category === 'todo' && (
+          <span className="todo-highlight-setting">
+            <input type="checkbox" checked={highlightTodo} onChange={(event) => setHighlightTodo(event.target.checked)} />
+            未完了時に強調表示する
+          </span>
+        )}
       </label>
 
       <div className="form-grid">
@@ -463,6 +464,18 @@ export function EventForm({
             <option value="weekly">毎週</option>
             <option value="monthly">毎月</option>
           </select>
+        </label>
+        <label>
+          間隔
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={recurrenceInterval}
+            disabled={recurrence === 'none'}
+            onChange={(event) => setRecurrenceInterval(normalizeRecurrenceInterval(Number(event.target.value)))}
+          />
+          <span className="helper-text">例: 毎週で2なら2週間ごと</span>
         </label>
         <label>
           終了日
@@ -543,9 +556,7 @@ export function EventForm({
             />
             <FieldError id="timeline-title-error" message={showTimelineErrors ? formErrors.timelineTitle : undefined} />
           </div>
-          <button type="button" className="ghost-button" onClick={handleAddTimelineItem}>
-            追加
-          </button>
+          <button type="button" className="ghost-button" onClick={handleAddTimelineItem}>追加</button>
         </div>
         {timelineItems.length > 0 && (
           <div className="timeline-preview">
@@ -553,9 +564,7 @@ export function EventForm({
               <div className="timeline-preview-item" key={item.id}>
                 <span>{item.time}</span>
                 <strong>{item.title}</strong>
-                <button type="button" className="ghost-button danger" onClick={() => handleDeleteTimelineItem(item.id)}>
-                  削除
-                </button>
+                <button type="button" className="ghost-button danger" onClick={() => handleDeleteTimelineItem(item.id)}>削除</button>
               </div>
             ))}
           </div>
@@ -588,9 +597,7 @@ export function EventForm({
                     className="tag-delete-button"
                     aria-label={`${tag.name} をこの予定から外す`}
                     onClick={() => handleRemoveTagFromEvent(tag.id)}
-                  >
-                    ×
-                  </button>
+                  >×</button>
                 )}
               </span>
             ))}
@@ -607,9 +614,7 @@ export function EventForm({
             }}
           >
             {tagTypeOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
+              <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
           <div className="color-input-row">
@@ -625,9 +630,7 @@ export function EventForm({
             </span>
           </div>
           <input value={newTagName} onChange={(event) => setNewTagName(event.target.value)} placeholder="例: UserA / バイトA" />
-          <button type="button" className="ghost-button" onClick={handleCreateTag}>
-            作成
-          </button>
+          <button type="button" className="ghost-button" onClick={handleCreateTag}>作成</button>
         </div>
       </div>
 
@@ -642,15 +645,11 @@ export function EventForm({
         >
           キャンセル
         </button>
-        <button className="primary-button" type="submit">
-          {isEditing ? '保存する' : '追加する'}
-        </button>
+        <button className="primary-button" type="submit">{isEditing ? '保存する' : '追加する'}</button>
       </div>
       {isEditing && onDeleteEvent && (
         <div className="form-delete-zone">
-          <button type="button" className="ghost-button danger" onClick={onDeleteEvent}>
-            削除
-          </button>
+          <button type="button" className="ghost-button danger" onClick={onDeleteEvent}>削除</button>
         </div>
       )}
     </form>
