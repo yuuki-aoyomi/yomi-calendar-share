@@ -27,6 +27,12 @@ const addDays = (date: Date, days: number): Date =>
 const getMonthDiff = (from: Date, to: Date): number =>
   (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
 
+const getMondayOfWeek = (date: Date): Date => {
+  const weekday = date.getDay();
+  const offsetFromMonday = (weekday + 6) % 7;
+  return addDays(date, -offsetFromMonday);
+};
+
 const isDateInEventRange = (event: CalendarEvent, dateKey: string): boolean => {
   const endDate = event.endDate && event.endDate >= event.date ? event.endDate : event.date;
   return event.date <= dateKey && dateKey <= endDate;
@@ -40,10 +46,20 @@ const isRecurringStartOnDate = (event: CalendarEvent, dateKey: string): boolean 
   if (event.recurrence.until && targetDate > parseDateKey(event.recurrence.until)) return false;
 
   const interval = Math.max(event.recurrence.interval || 1, 1);
+  const diffDays = getDaysBetween(startDate, targetDate);
+
+  if (event.recurrence.frequency === 'daily') {
+    return diffDays % interval === 0;
+  }
 
   if (event.recurrence.frequency === 'weekly') {
-    const diffDays = getDaysBetween(startDate, targetDate);
-    return diffDays % (7 * interval) === 0;
+    const weekdays = event.recurrence.weekdays?.length
+      ? event.recurrence.weekdays
+      : [startDate.getDay()];
+    const startWeek = getMondayOfWeek(startDate);
+    const targetWeek = getMondayOfWeek(targetDate);
+    const weekDiff = Math.floor(getDaysBetween(startWeek, targetWeek) / 7);
+    return weekDiff % interval === 0 && weekdays.includes(targetDate.getDay());
   }
 
   const monthDiff = getMonthDiff(startDate, targetDate);

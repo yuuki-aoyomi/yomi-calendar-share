@@ -25,6 +25,7 @@ const categoryLabels: Record<CalendarEvent['category'], string> = {
 };
 
 const recurrenceLabels = {
+  daily: '毎日',
   weekly: '毎週',
   monthly: '毎月',
 } as const;
