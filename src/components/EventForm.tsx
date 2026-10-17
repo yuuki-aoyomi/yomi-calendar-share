@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type {
   CalendarEvent,
   CalendarTag,
@@ -8,6 +8,7 @@ import type {
   RecurrenceFrequency,
 } from '../types/calendar';
 import { normalizeTime, validateEventForm } from '../utils/eventFormValidation';
+import { rankEventTemplateCandidates } from '../utils/eventTemplates';
 import { createId } from '../utils/id';
 import { getRecurrenceInterval, normalizeRecurrenceInterval } from '../utils/recurrenceForm';
 import { estimateBreakMinutes } from '../utils/salary';
@@ -116,18 +117,17 @@ export function EventForm({
   const isEditing = Boolean(editingEvent);
   const eventStartDate = editingEvent?.date ?? selectedDate;
   const orderedTags = sortCalendarTags(tags);
-  const eventSuggestions = events
-    .filter((event, index, source) => {
-      if (isEditing) return false;
-      const normalizedTitle = title.trim().toLowerCase();
-      const isTitleMatched = normalizedTitle
-        ? event.title.toLowerCase().includes(normalizedTitle)
-        : index < 5;
-      const isFirstSameTitle = source.findIndex((item) => item.title === event.title) === index;
-
-      return isTitleMatched && isFirstSameTitle;
-    })
-    .slice(0, 5);
+  const eventSuggestions = useMemo(
+    () =>
+      isEditing
+        ? []
+        : rankEventTemplateCandidates(events, selectedDate, tags, {
+            title,
+            startTime: normalizeTime(startTime),
+            tagIds: selectedTagIds,
+          }).slice(0, 5),
+    [events, isEditing, selectedDate, selectedTagIds, startTime, tags, title],
+  );
 
   const formErrors = validateEventForm({
     title,

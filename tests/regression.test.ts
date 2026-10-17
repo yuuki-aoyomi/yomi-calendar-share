@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildCreditCardPaymentSchedules } from '../src/utils/creditCard.ts';
+import { rankEventTemplateCandidates, scoreEventSuggestion } from '../src/utils/eventTemplates.ts';
 import { getRecurrenceInterval, normalizeRecurrenceInterval } from '../src/utils/recurrenceForm.ts';
 import { persistRemoteSnapshot } from '../src/utils/remoteSave.ts';
 import { getHighlightedPendingTodos } from '../src/utils/todo.ts';
@@ -155,4 +156,75 @@ test('calendar snapshot survives JSON serialization without losing data', () => 
   }));
 
   assert.deepEqual(JSON.parse(JSON.stringify(snapshot)), snapshot);
+});
+
+test('suggestion score prefers exact title, same weekday, time bucket and matching tags', () => {
+  const matching = makeEvent({
+    title: 'バイト',
+    date: '2026-10-12',
+    startTime: '18:00',
+    tagIds: ['work'],
+  });
+  const unrelated = makeEvent({
+    title: '買い物',
+    date: '2026-10-13',
+    startTime: '09:00',
+    tagIds: ['personal'],
+  });
+
+  const context = { title: 'バイト', startTime: '18:30', tagIds: ['work'] };
+  assert.ok(
+    scoreEventSuggestion(matching, '2026-10-19', context, 3) >
+      scoreEventSuggestion(unrelated, '2026-10-19', context, 1),
+  );
+});
+
+test('suggestion ranking uses frequency and recency and returns safe shifted templates', () => {
+  const events: CalendarEvent[] = [
+    makeEvent({
+      id: 'gym-old',
+      title: 'ジム',
+      date: '2026-10-05',
+      startTime: '19:00',
+      updatedAt: '2026-10-05T00:00:00Z',
+    }),
+    makeEvent({
+      id: 'gym-new',
+      title: 'ジム',
+      date: '2026-10-12',
+      startTime: '19:00',
+      updatedAt: '2026-10-12T00:00:00Z',
+    }),
+    makeEvent({
+      id: 'gym-extra',
+      title: 'ジム',
+      date: '2026-09-28',
+      startTime: '19:00',
+      updatedAt: '2026-09-28T00:00:00Z',
+    }),
+    makeEvent({
+      id: 'study',
+      title: '勉強',
+      date: '2026-10-12',
+      startTime: '19:00',
+      updatedAt: '2026-10-16T00:00:00Z',
+    }),
+  ];
+
+  const ranked = rankEventTemplateCandidates(events, '2026-10-19', [], { startTime: '19:30' });
+  assert.equal(ranked[0].title, 'ジム');
+  assert.equal(ranked[0].id, 'gym-new');
+  assert.equal(ranked[0].date, '2026-10-19');
+  assert.equal(ranked.filter((event) => event.title === 'ジム').length, 1);
+});
+
+test('title query filters unrelated suggestions and exact match wins', () => {
+  const events: CalendarEvent[] = [
+    makeEvent({ id: 'exact', title: '大学', updatedAt: '2026-10-01T00:00:00Z' }),
+    makeEvent({ id: 'prefix', title: '大学作業', updatedAt: '2026-10-16T00:00:00Z' }),
+    makeEvent({ id: 'other', title: 'バイト', updatedAt: '2026-10-17T00:00:00Z' }),
+  ];
+
+  const ranked = rankEventTemplateCandidates(events, '2026-10-17', [], { title: '大学' });
+  assert.deepEqual(ranked.map((event) => event.id), ['exact', 'prefix']);
 });
