@@ -12,7 +12,7 @@
     "cf:deploy": "npm run build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply yomi-calendar-share-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply yomi-calendar-share-db --remote",
-    "test": "node -e \"require('fs').rmSync('.tmp-tests',{recursive:true,force:true})\" && esbuild tests/features.test.ts tests/regression.test.ts tests/referenceIntegrity.test.ts --bundle --platform=node --format=esm --outdir=.tmp-tests && node --test .tmp-tests/features.test.js .tmp-tests/regression.test.js .tmp-tests/referenceIntegrity.test.js"
+    "test": "node -e \"require('fs').rmSync('.tmp-tests',{recursive:true,force:true})\" && esbuild tests/features.test.ts tests/regression.test.ts tests/referenceIntegrity.test.ts tests/dataTransfer.test.ts --bundle --platform=node --format=esm --outdir=.tmp-tests && node --test .tmp-tests/features.test.js .tmp-tests/regression.test.js .tmp-tests/referenceIntegrity.test.js .tmp-tests/dataTransfer.test.js"
   },
   "dependencies": {
     "react": "^19.2.6",
