@@ -8,6 +8,12 @@ import { createSerialTaskQueue } from '../src/utils/serialTaskQueue.ts';
 import { getHighlightedPendingTodos } from '../src/utils/todo.ts';
 import type { CalendarDataSnapshot } from '../src/repositories/calendarRepository.ts';
 import type { CalendarEvent, CreditCardSetting, MoneyRecord } from '../src/types/calendar.ts';
+import {
+  createImageBackupManifest,
+  getImageBackupKey,
+  getImageBackupManifestKey,
+  getImageBackupPrefix,
+} from '../server/core/imageBackup.ts';
 
 const makeEvent = (overrides: Partial<CalendarEvent> = {}): CalendarEvent => ({
   id: 'event',
@@ -273,4 +279,40 @@ test('title query filters unrelated suggestions and exact match wins', () => {
 
   const ranked = rankEventTemplateCandidates(events, '2026-10-17', [], { title: '大学' });
   assert.deepEqual(ranked.map((event) => event.id), ['exact', 'prefix']);
+});
+
+test('image backup keys are stable per image version and keep source hierarchy', () => {
+  const sourceKey = 'daily-images/optimized/default/2026-10-18/photo.webp';
+  const versionKey = getImageBackupKey(sourceKey, '"abc/123"');
+
+  assert.equal(
+    versionKey,
+    'r2-images/objects/daily-images/optimized/default/2026-10-18/photo.webp/__versions/abc_123',
+  );
+  assert.equal(
+    getImageBackupPrefix(sourceKey),
+    'r2-images/objects/daily-images/optimized/default/2026-10-18/photo.webp/__versions/',
+  );
+});
+
+test('image backup manifest records image count and deterministic daily key', () => {
+  const createdAt = '2026-10-18T01:23:45.678Z';
+  const entries = [{
+    sourceKey: 'daily-images/optimized/default/2026-10-18/photo.webp',
+    sourceEtag: 'etag',
+    sourceUploadedAt: createdAt,
+    backupKey: 'backup',
+    size: 123,
+  }];
+
+  assert.deepEqual(createImageBackupManifest(entries, createdAt), {
+    schemaVersion: 1,
+    createdAt,
+    imageCount: 1,
+    entries,
+  });
+  assert.equal(
+    getImageBackupManifestKey(createdAt),
+    'r2-images/manifests/2026-10-18/2026-10-18T01-23-45-678Z.json',
+  );
 });
