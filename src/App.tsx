@@ -194,7 +194,7 @@ function App() {
         lastSavedRemoteSnapshot.current = JSON.stringify(snapshot);
         setRemoteLoadError('');
         setRemoteSaveError('');
-        setSyncStatus(isOnline ? 'saved' : 'offline');
+        setSyncStatus(typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'saved');
         setIsRemoteLoaded(true);
       })
       .catch(() => {
@@ -209,7 +209,6 @@ function App() {
       isCancelled = true;
     };
   }, [
-    isOnline,
     setCreditCards,
     setDailyPhotos,
     setEvents,
