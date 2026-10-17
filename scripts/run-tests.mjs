@@ -13,8 +13,16 @@ if (testFiles.length === 0) {
 }
 
 rmSync('.tmp-tests', { recursive: true, force: true });
+
 const esbuild = resolve('node_modules', '.bin', process.platform === 'win32' ? 'esbuild.cmd' : 'esbuild');
-const build = spawnSync(esbuild, [...testFiles, '--bundle', '--platform=node', '--format=esm', '--outdir=.tmp-tests'], { stdio: 'inherit' });
+const build = spawnSync(esbuild, [
+  ...testFiles,
+  '--bundle',
+  '--platform=node',
+  '--format=esm',
+  '--outdir=.tmp-tests',
+], { stdio: 'inherit' });
+
 if (build.status !== 0) process.exit(build.status ?? 1);
 
 const compiledTests = testFiles.map((file) => `.tmp-tests/${basename(file, '.ts')}.js`);
