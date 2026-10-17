@@ -1,0 +1,25 @@
+{
+  "name": "Yomi Calendar Share",
+  "short_name": "Yomi Calendar",
+  "description": "予定・お金・ラブログを同じ日付軸で整理する共有カレンダー",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#111318",
+  "theme_color": "#111318",
+  "lang": "ja",
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
