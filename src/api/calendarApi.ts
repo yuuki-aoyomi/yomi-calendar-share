@@ -2,6 +2,7 @@ import { appConfig } from '../config/appConfig';
 import type { CalendarDataSnapshot } from '../repositories/calendarRepository';
 import { mergeCalendarSnapshots } from '../utils/calendarSync';
 import type { RemoteSaveResult } from '../utils/remoteSave';
+import { createSerialTaskQueue } from '../utils/serialTaskQueue';
 
 export type CalendarSnapshotPayload = {
   calendarId: string;
@@ -58,7 +59,7 @@ export type RemoteCalendarUpdate = {
 
 let remoteCalendarState: RemoteCalendarState | undefined;
 let reloadRequired = false;
-let saveQueue: Promise<void> = Promise.resolve();
+const enqueueSave = createSerialTaskQueue();
 
 const apiUrl = (path: string) => `${appConfig.apiBaseUrl}${path}`;
 
@@ -250,11 +251,8 @@ export const saveCalendarSnapshot = (
   calendarId: string,
   snapshot: CalendarDataSnapshot,
   writeToken: string,
-): Promise<RemoteSaveResult> => {
-  const operation = saveQueue.then(() => performCalendarSave(calendarId, snapshot, writeToken));
-  saveQueue = operation.then(() => undefined, () => undefined);
-  return operation;
-};
+): Promise<RemoteSaveResult> =>
+  enqueueSave(() => performCalendarSave(calendarId, snapshot, writeToken));
 
 export const uploadDailyPhoto = async ({
   calendarId,
