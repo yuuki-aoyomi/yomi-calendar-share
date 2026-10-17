@@ -9,6 +9,11 @@ type CalendarSnapshotPayload = {
   version: number;
 };
 
+type CalendarVersionPayload = {
+  calendarId: string;
+  version: number;
+};
+
 type CalendarSavePayload = {
   ok: true;
   version: number;
@@ -49,11 +54,11 @@ export type RemoteCalendarUpdate = {
   changed: boolean;
   calendarId: string;
   version: number;
-  snapshot: CalendarDataSnapshot;
 };
 
 let remoteCalendarState: RemoteCalendarState | undefined;
 let reloadRequired = false;
+let saveQueue: Promise<void> = Promise.resolve();
 
 const apiUrl = (path: string) => `${appConfig.apiBaseUrl}${path}`;
 
@@ -104,6 +109,24 @@ const fetchCalendarSnapshot = async (
   return (await response.json()) as CalendarSnapshotPayload;
 };
 
+const fetchCalendarVersion = async (
+  calendarId: string,
+  writeToken: string,
+): Promise<CalendarVersionPayload> => {
+  const response = await fetch(apiUrl(`/api/calendar/${encodeURIComponent(calendarId)}?versionOnly=1`), {
+    headers: {
+      authorization: `Bearer ${writeToken}`,
+    },
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error('カレンダーの更新確認に失敗しました。');
+  }
+
+  return (await response.json()) as CalendarVersionPayload;
+};
+
 export const adoptCalendarSnapshot = (
   calendarId: string,
   snapshot: CalendarDataSnapshot,
@@ -113,9 +136,17 @@ export const adoptCalendarSnapshot = (
   reloadRequired = false;
 };
 
-export const loadCalendarSnapshot = async (calendarId: string, writeToken: string): Promise<CalendarDataSnapshot> => {
+export const loadCalendarSnapshotWithVersion = async (
+  calendarId: string,
+  writeToken: string,
+): Promise<CalendarSnapshotPayload> => {
   const payload = await fetchCalendarSnapshot(calendarId, writeToken);
   adoptCalendarSnapshot(calendarId, payload.snapshot, payload.version);
+  return payload;
+};
+
+export const loadCalendarSnapshot = async (calendarId: string, writeToken: string): Promise<CalendarDataSnapshot> => {
+  const payload = await loadCalendarSnapshotWithVersion(calendarId, writeToken);
   return payload.snapshot;
 };
 
@@ -123,7 +154,7 @@ export const checkCalendarSnapshotUpdate = async (
   calendarId: string,
   writeToken: string,
 ): Promise<RemoteCalendarUpdate> => {
-  const payload = await fetchCalendarSnapshot(calendarId, writeToken);
+  const payload = await fetchCalendarVersion(calendarId, writeToken);
   const currentVersion = remoteCalendarState?.calendarId === calendarId
     ? remoteCalendarState.version
     : undefined;
@@ -132,7 +163,6 @@ export const checkCalendarSnapshotUpdate = async (
     changed: currentVersion === undefined || payload.version > currentVersion,
     calendarId: payload.calendarId,
     version: payload.version,
-    snapshot: payload.snapshot,
   };
 };
 
@@ -156,7 +186,7 @@ const showReloadAlert = (message: string) => {
   }
 };
 
-export const saveCalendarSnapshot = async (
+const performCalendarSave = async (
   calendarId: string,
   snapshot: CalendarDataSnapshot,
   writeToken: string,
@@ -213,6 +243,16 @@ export const saveCalendarSnapshot = async (
   reloadRequired = true;
   showReloadAlert('他の端末の更新を自動的に差分マージしました。最新の内容を画面へ反映するため、このタブからの保存を停止しています。再読み込みしてください。');
   return 'reload-required';
+};
+
+export const saveCalendarSnapshot = (
+  calendarId: string,
+  snapshot: CalendarDataSnapshot,
+  writeToken: string,
+): Promise<RemoteSaveResult> => {
+  const operation = saveQueue.then(() => performCalendarSave(calendarId, snapshot, writeToken));
+  saveQueue = operation.then(() => undefined, () => undefined);
+  return operation;
 };
 
 export const uploadDailyPhoto = async ({
