@@ -11,6 +11,7 @@ React + TypeScript + Vite で作る、予定・ToDo・お金・日別写真・�
 - フロントエンドは React の通常SPA
 - ローカル開発では `localStorage` 保存
 - 本番HTTPSでは同一originのHTTP APIを利用
+- リモート利用時は15秒ごとに軽量version確認を行い、他端末更新を検知
 - Cloudflare版では D1 にカレンダー全体のJSON snapshotを保存
 - 画像は R2 に保存し、DBには固定URLではなく `imageKey` とメタデータを保存
 - 共有トークン `WRITE_TOKEN` で読み書きAPIと画像APIを保護
@@ -55,6 +56,9 @@ React + TypeScript + Vite で作る、予定・ToDo・お金・日別写真・�
   - 手動天気背景: 晴れ、雨、雷、曇り、雪、霰・雹
   - 設定でON/OFF
 - JSONバックアップの書き出し / 読み込み
+- 他端末同期
+  - ローカル変更がない場合は新しいremote snapshotを自動反映
+  - ローカル編集中はremoteで上書きせず、楽観ロックと3-way merge経路で処理
 
 ## Architecture
 
