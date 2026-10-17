@@ -4,7 +4,6 @@ import { EventList } from './EventList';
 import { DailyPhotoPanel } from './DailyPhotoPanel';
 import type { CalendarEvent, CalendarTag, CreditCardSetting, DailyPhoto, MoneyRecord, PartTimeJob } from '../types/calendar';
 import { buildCreditCardPaymentSchedules } from '../utils/creditCard';
-import { buildEventTemplateCandidates } from '../utils/eventTemplates';
 import { createId } from '../utils/id';
 import { getEventsForDate } from '../utils/recurrence';
 import { buildSalaryPaymentSchedules } from '../utils/salary';
@@ -75,10 +74,6 @@ export function ScheduleMode({
         return a.createdAt.localeCompare(b.createdAt);
       }),
     [events, selectedDate],
-  );
-  const eventTemplateCandidates = useMemo(
-    () => buildEventTemplateCandidates(events, selectedDate, tags),
-    [events, selectedDate, tags],
   );
   const selectedPaymentSchedules = useMemo(
     () =>
@@ -228,7 +223,7 @@ export function ScheduleMode({
             </button>
             <EventForm
               selectedDate={selectedDate}
-              events={eventTemplateCandidates}
+              events={events}
               editingEvent={editingEvent}
               tags={tags}
               onSaveEvent={(event) => {
