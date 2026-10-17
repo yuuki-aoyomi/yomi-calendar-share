@@ -55,6 +55,8 @@ React + TypeScript + Vite で作る、予定・ToDo・お金・日別写真・�
   - 手動天気背景: 晴れ、雨、雷、曇り、雪、霰・雹
   - 設定でON/OFF
 - JSONバックアップの書き出し / 読み込み
+  - 読み込み前にタグ・バイト・クレカ等の参照整合性を検証
+  - dangling参照を含むバックアップは現在データを変更する前に拒否
 
 ## Architecture
 
@@ -119,6 +121,7 @@ docs/           operation and portability notes
 - 既存予定 / ToDo は `sortOrder` 未設定なら従来の時刻順
 - ToDoは引き続き `CalendarEvent` の `category: 'todo'`
 - Visual設定は別localStorage keyで保存し、バックアップ本体には含めていません
+- バックアップImportでは `MoneyRecord` / `Subscription` / 予定 / 設定の参照整合性を検証します
 
 ## Tech Stack
 
