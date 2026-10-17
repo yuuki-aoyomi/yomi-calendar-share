@@ -1,0 +1,158 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { buildCreditCardPaymentSchedules } from '../src/utils/creditCard.ts';
+import { getRecurrenceInterval, normalizeRecurrenceInterval } from '../src/utils/recurrenceForm.ts';
+import { persistRemoteSnapshot } from '../src/utils/remoteSave.ts';
+import { getHighlightedPendingTodos } from '../src/utils/todo.ts';
+import type { CalendarDataSnapshot } from '../src/repositories/calendarRepository.ts';
+import type { CalendarEvent, CreditCardSetting, MoneyRecord } from '../src/types/calendar.ts';
+
+const makeEvent = (overrides: Partial<CalendarEvent> = {}): CalendarEvent => ({
+  id: 'event',
+  date: '2026-10-17',
+  title: 'Test',
+  category: 'schedule',
+  tagIds: [],
+  tags: [],
+  timelineItems: [],
+  createdAt: '2026-10-17T00:00:00Z',
+  updatedAt: '2026-10-17T00:00:00Z',
+  ...overrides,
+});
+
+const emptySnapshot = (): CalendarDataSnapshot => ({
+  events: [],
+  moneyRecords: [],
+  loveLogs: [],
+  tags: [],
+  partTimeJobs: [],
+  creditCards: [],
+  subscriptions: [],
+  dailyPhotos: [],
+});
+
+test('recurrence interval is preserved for editing and suggestion reuse', () => {
+  const biweekly = makeEvent({ recurrence: { frequency: 'weekly', interval: 2, weekdays: [1, 3, 5] } });
+  assert.equal(getRecurrenceInterval(biweekly), 2);
+  assert.equal(getRecurrenceInterval(makeEvent({ recurrence: { frequency: 'weekly', interval: 1 } })), 1);
+  assert.equal(getRecurrenceInterval(makeEvent()), 1);
+  assert.equal(normalizeRecurrenceInterval(2), 2);
+  assert.equal(normalizeRecurrenceInterval(0), 1);
+  assert.equal(normalizeRecurrenceInterval(Number.NaN), 1);
+});
+
+test('failed remote save stays dirty and can be retried successfully', async () => {
+  const snapshot = { value: 'local-change' };
+  const previousSavedJson = JSON.stringify({ value: 'server-state' });
+  let attempts = 0;
+
+  const first = await persistRemoteSnapshot({
+    snapshot,
+    lastSavedJson: previousSavedJson,
+    save: async () => {
+      attempts += 1;
+      throw new Error('network down');
+    },
+  });
+
+  assert.equal(first.status, 'failed');
+  assert.equal(first.savedJson, previousSavedJson);
+  assert.match(first.error?.message ?? '', /network down/);
+
+  const second = await persistRemoteSnapshot({
+    snapshot,
+    lastSavedJson: first.savedJson,
+    save: async () => {
+      attempts += 1;
+      return 'saved';
+    },
+  });
+
+  assert.equal(attempts, 2);
+  assert.equal(second.status, 'saved');
+  assert.equal(second.savedJson, JSON.stringify(snapshot));
+});
+
+test('reload-required result does not mark local data as saved', async () => {
+  const previousSavedJson = JSON.stringify({ value: 'base' });
+  const result = await persistRemoteSnapshot({
+    snapshot: { value: 'conflicting-local-edit' },
+    lastSavedJson: previousSavedJson,
+    save: async () => 'reload-required',
+  });
+
+  assert.equal(result.status, 'reload-required');
+  assert.equal(result.savedJson, previousSavedJson);
+});
+
+test('unchanged remote snapshot does not issue another save', async () => {
+  const snapshot = { value: 'same' };
+  const savedJson = JSON.stringify(snapshot);
+  let called = false;
+
+  const result = await persistRemoteSnapshot({
+    snapshot,
+    lastSavedJson: savedJson,
+    save: async () => {
+      called = true;
+      return 'saved';
+    },
+  });
+
+  assert.equal(result.status, 'unchanged');
+  assert.equal(called, false);
+});
+
+test('todo highlight includes only unfinished enabled todos due today or earlier', () => {
+  const events: CalendarEvent[] = [
+    makeEvent({ id: 'old', date: '2026-10-15', category: 'todo', done: false, highlightTodo: true }),
+    makeEvent({ id: 'today', date: '2026-10-17', category: 'todo', done: false, highlightTodo: true }),
+    makeEvent({ id: 'future', date: '2026-10-18', category: 'todo', done: false, highlightTodo: true }),
+    makeEvent({ id: 'done', date: '2026-10-16', category: 'todo', done: true, highlightTodo: true }),
+    makeEvent({ id: 'disabled', date: '2026-10-16', category: 'todo', done: false, highlightTodo: false }),
+    makeEvent({ id: 'legacy', date: '2026-10-16', category: 'todo', done: false, highlightTodo: undefined }),
+    makeEvent({ id: 'schedule', date: '2026-10-16', category: 'schedule' }),
+  ];
+
+  assert.deepEqual(
+    getHighlightedPendingTodos(events, '2026-10-17').map((event) => event.id),
+    ['old', 'legacy', 'today'],
+  );
+});
+
+test('credit card month-end clamping handles leap years', () => {
+  const card: CreditCardSetting = {
+    id: 'leap',
+    name: 'Leap',
+    tagId: 'leap',
+    closingDay: 31,
+    paymentDay: 31,
+    createdAt: '',
+    updatedAt: '',
+  };
+  const record: MoneyRecord = {
+    id: 'r1',
+    date: '2028-01-31',
+    amount: 1000,
+    creditCardId: 'leap',
+    isCreditCard: true,
+    type: 'expense',
+    category: 'test',
+    createdAt: '',
+    updatedAt: '',
+  };
+
+  const schedules = buildCreditCardPaymentSchedules([record], [card]);
+  assert.equal(schedules[0].paymentDate, '2028-02-29');
+});
+
+test('calendar snapshot survives JSON serialization without losing data', () => {
+  const snapshot = emptySnapshot();
+  snapshot.events.push(makeEvent({
+    id: 'serialized',
+    title: '日本語の予定',
+    recurrence: { frequency: 'weekly', interval: 2, weekdays: [1, 5] },
+  }));
+
+  assert.deepEqual(JSON.parse(JSON.stringify(snapshot)), snapshot);
+});
