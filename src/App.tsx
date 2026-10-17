@@ -31,6 +31,7 @@ const remoteApiEnabled = shouldUseRemoteApi();
 const localDataEnabled = !remoteApiEnabled;
 
 export type VisualWeather = 'sunny' | 'rain' | 'thunder' | 'cloudy' | 'snow' | 'hail';
+type SyncStatus = 'saved' | 'saving' | 'offline' | 'failed' | 'reload-required';
 
 const getTimePeriod = (): 'morning' | 'day' | 'evening' | 'night' => {
   const hour = new Date().getHours();
@@ -38,6 +39,14 @@ const getTimePeriod = (): 'morning' | 'day' | 'evening' | 'night' => {
   if (hour >= 11 && hour < 16) return 'day';
   if (hour >= 16 && hour < 19) return 'evening';
   return 'night';
+};
+
+const syncStatusText: Record<SyncStatus, string> = {
+  saved: '保存済み',
+  saving: '保存中',
+  offline: 'オフライン',
+  failed: '保存失敗',
+  'reload-required': '競合・再読み込み必要',
 };
 
 function App() {
@@ -111,6 +120,8 @@ function App() {
   const [remoteLoadError, setRemoteLoadError] = useState('');
   const [remoteSaveError, setRemoteSaveError] = useState('');
   const [remoteSaveRetryToken, setRemoteSaveRetryToken] = useState(0);
+  const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('saved');
   const lastSavedRemoteSnapshot = useRef('');
   const pendingHighlightedTodos = useMemo(
     () => getHighlightedPendingTodos(events, toDateKey(new Date())),
@@ -133,6 +144,26 @@ function App() {
   useEffect(() => {
     const intervalId = window.setInterval(() => setTimePeriod(getTimePeriod()), 60_000);
     return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    if (!remoteApiEnabled) return;
+
+    const handleOnline = () => {
+      setIsOnline(true);
+      setRemoteSaveRetryToken((current) => current + 1);
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      setSyncStatus('offline');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
   useEffect(() => {
@@ -163,6 +194,7 @@ function App() {
         lastSavedRemoteSnapshot.current = JSON.stringify(snapshot);
         setRemoteLoadError('');
         setRemoteSaveError('');
+        setSyncStatus(isOnline ? 'saved' : 'offline');
         setIsRemoteLoaded(true);
       })
       .catch(() => {
@@ -177,6 +209,7 @@ function App() {
       isCancelled = true;
     };
   }, [
+    isOnline,
     setCreditCards,
     setDailyPhotos,
     setEvents,
@@ -191,6 +224,10 @@ function App() {
   useEffect(() => {
     if (!remoteApiEnabled || !isRemoteLoaded) return;
     if (!writeToken.trim()) return;
+    if (!isOnline) {
+      setSyncStatus('offline');
+      return;
+    }
 
     let isCancelled = false;
     let retryTimeoutId: number | undefined;
@@ -206,6 +243,11 @@ function App() {
         subscriptions,
         dailyPhotos,
       };
+      const snapshotJson = JSON.stringify(snapshot);
+
+      if (snapshotJson !== lastSavedRemoteSnapshot.current) {
+        setSyncStatus('saving');
+      }
 
       void persistRemoteSnapshot({
         snapshot,
@@ -214,19 +256,27 @@ function App() {
       }).then((attempt) => {
         if (isCancelled) return;
 
+        if (attempt.status === 'unchanged') {
+          setSyncStatus('saved');
+          return;
+        }
+
         if (attempt.status === 'saved') {
           lastSavedRemoteSnapshot.current = attempt.savedJson;
           setRemoteSaveError('');
+          setSyncStatus('saved');
           return;
         }
 
         if (attempt.status === 'reload-required') {
           setRemoteSaveError('同期競合のため自動保存を停止しています。画面を再読み込みして最新状態を確認してください。');
+          setSyncStatus('reload-required');
           return;
         }
 
         if (attempt.status === 'failed') {
           setRemoteSaveError('リモート保存に失敗しました。未保存の変更を保持したまま再試行します。');
+          setSyncStatus('failed');
           retryTimeoutId = window.setTimeout(
             () => setRemoteSaveRetryToken((current) => current + 1),
             5000,
@@ -244,6 +294,7 @@ function App() {
     creditCards,
     dailyPhotos,
     events,
+    isOnline,
     isRemoteLoaded,
     loveLogs,
     moneyRecords,
@@ -341,13 +392,26 @@ function App() {
               {tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}
             </select>
           </div>
-          {remoteSaveError && (
-            <section className="todo-alert-panel" role="alert">
-              <strong>同期に問題があります</strong>
-              <span>{remoteSaveError}</span>
-              <button type="button" onClick={() => setRemoteSaveRetryToken((current) => current + 1)}>
-                今すぐ再試行
-              </button>
+          {remoteApiEnabled && (
+            <section className="todo-alert-panel" role="status">
+              <strong>同期: {syncStatusText[syncStatus]}</strong>
+              <span>
+                {syncStatus === 'saved' && 'リモートに保存されています。'}
+                {syncStatus === 'saving' && '変更を保存しています。'}
+                {syncStatus === 'offline' && 'ネットワーク復帰後に未保存変更を再試行します。'}
+                {syncStatus === 'failed' && remoteSaveError}
+                {syncStatus === 'reload-required' && remoteSaveError}
+              </span>
+              {syncStatus === 'failed' && (
+                <button type="button" onClick={() => setRemoteSaveRetryToken((current) => current + 1)}>
+                  今すぐ再試行
+                </button>
+              )}
+              {syncStatus === 'reload-required' && (
+                <button type="button" onClick={() => window.location.reload()}>
+                  再読み込み
+                </button>
+              )}
             </section>
           )}
           {pendingHighlightedTodos.length > 0 && (
