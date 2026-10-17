@@ -58,7 +58,7 @@ export const searchCalendarData = (
 
   const moneyResults: CalendarSearchResult[] = moneyRecords
     .filter((record) => inDateRange(record.date, filters.dateFrom, filters.dateTo))
-    .filter((record) => includesQuery([record.category, record.memo, record.title], query))
+    .filter((record) => includesQuery([record.category, record.memo], query))
     .filter((record) => !filters.moneyType || record.type === filters.moneyType)
     .filter((record) => !filters.creditCardId || record.creditCardId === filters.creditCardId)
     .filter((record) => filters.minAmount === undefined || record.amount >= filters.minAmount)
@@ -67,7 +67,7 @@ export const searchCalendarData = (
       kind: 'money' as const,
       id: record.id,
       date: record.date,
-      title: record.title?.trim() || record.category,
+      title: record.category,
       record,
     }));
 
