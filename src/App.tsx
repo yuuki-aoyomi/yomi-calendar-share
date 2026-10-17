@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { loadCalendarSnapshot, saveCalendarSnapshot, shouldUseRemoteApi } from './api/calendarApi';
+import {
+  adoptCalendarSnapshot,
+  checkCalendarSnapshotUpdate,
+  fetchCalendarSnapshot,
+  loadCalendarSnapshot,
+  saveCalendarSnapshot,
+  shouldUseRemoteApi,
+} from './api/calendarApi';
 import { appConfig } from './config/appConfig';
 import { Calendar } from './components/Calendar';
 import { ModeTabs } from './components/ModeTabs';
@@ -29,6 +36,7 @@ const todayKey = toDateKey(new Date());
 const calendarId = appConfig.calendarId;
 const remoteApiEnabled = shouldUseRemoteApi();
 const localDataEnabled = !remoteApiEnabled;
+const remotePollIntervalMs = 15_000;
 
 export type VisualWeather = 'sunny' | 'rain' | 'thunder' | 'cloudy' | 'snow' | 'hail';
 type SyncStatus = 'saved' | 'saving' | 'offline' | 'failed' | 'reload-required';
@@ -123,10 +131,25 @@ function App() {
   const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('saved');
   const lastSavedRemoteSnapshot = useRef('');
+  const currentRemoteSnapshot = useMemo(() => ({
+    events,
+    moneyRecords,
+    loveLogs,
+    tags,
+    partTimeJobs,
+    creditCards,
+    subscriptions,
+    dailyPhotos,
+  }), [events, moneyRecords, loveLogs, tags, partTimeJobs, creditCards, subscriptions, dailyPhotos]);
+  const latestRemoteSnapshot = useRef(currentRemoteSnapshot);
   const pendingHighlightedTodos = useMemo(
     () => getHighlightedPendingTodos(events, toDateKey(new Date())),
     [events, timePeriod],
   );
+
+  useEffect(() => {
+    latestRemoteSnapshot.current = currentRemoteSnapshot;
+  }, [currentRemoteSnapshot]);
 
   const handleSelectDate = (dateKey: string) => {
     setSelectedDate(dateKey);
@@ -232,16 +255,7 @@ function App() {
     let retryTimeoutId: number | undefined;
 
     const timeoutId = window.setTimeout(() => {
-      const snapshot = {
-        events,
-        moneyRecords,
-        loveLogs,
-        tags,
-        partTimeJobs,
-        creditCards,
-        subscriptions,
-        dailyPhotos,
-      };
+      const snapshot = currentRemoteSnapshot;
       const snapshotJson = JSON.stringify(snapshot);
 
       if (snapshotJson !== lastSavedRemoteSnapshot.current) {
@@ -289,18 +303,78 @@ function App() {
       window.clearTimeout(timeoutId);
       if (retryTimeoutId !== undefined) window.clearTimeout(retryTimeoutId);
     };
+  }, [currentRemoteSnapshot, isOnline, isRemoteLoaded, remoteSaveRetryToken, writeToken]);
+
+  useEffect(() => {
+    if (!remoteApiEnabled || !isRemoteLoaded || !writeToken.trim() || !isOnline) return;
+    if (syncStatus === 'reload-required') return;
+
+    let isCancelled = false;
+    let isChecking = false;
+
+    const checkForRemoteUpdate = async () => {
+      if (isChecking || isCancelled) return;
+      isChecking = true;
+
+      try {
+        const update = await checkCalendarSnapshotUpdate(calendarId, writeToken);
+        if (isCancelled || !update.changed) return;
+
+        const localBeforeFetch = JSON.stringify(latestRemoteSnapshot.current);
+        if (localBeforeFetch !== lastSavedRemoteSnapshot.current) {
+          setRemoteSaveRetryToken((current) => current + 1);
+          return;
+        }
+
+        const remote = await fetchCalendarSnapshot(calendarId, writeToken);
+        if (isCancelled) return;
+
+        const localAfterFetch = JSON.stringify(latestRemoteSnapshot.current);
+        if (localAfterFetch !== lastSavedRemoteSnapshot.current) {
+          setRemoteSaveRetryToken((current) => current + 1);
+          return;
+        }
+
+        adoptCalendarSnapshot(remote.calendarId, remote.snapshot, remote.version);
+        setEvents(remote.snapshot.events);
+        setMoneyRecords(remote.snapshot.moneyRecords);
+        setLoveLogs(remote.snapshot.loveLogs);
+        setTags(remote.snapshot.tags);
+        setPartTimeJobs(remote.snapshot.partTimeJobs);
+        setCreditCards(remote.snapshot.creditCards);
+        setSubscriptions(remote.snapshot.subscriptions ?? []);
+        setDailyPhotos(remote.snapshot.dailyPhotos);
+        lastSavedRemoteSnapshot.current = JSON.stringify(remote.snapshot);
+        setRemoteSaveError('');
+        setSyncStatus('saved');
+      } catch {
+        // Polling failure must not turn a healthy local snapshot into an error state.
+        // The normal save path still reports actionable network/save failures.
+      } finally {
+        isChecking = false;
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void checkForRemoteUpdate();
+    }, remotePollIntervalMs);
+
+    return () => {
+      isCancelled = true;
+      window.clearInterval(intervalId);
+    };
   }, [
-    creditCards,
-    dailyPhotos,
-    events,
     isOnline,
     isRemoteLoaded,
-    loveLogs,
-    moneyRecords,
-    partTimeJobs,
-    remoteSaveRetryToken,
-    subscriptions,
-    tags,
+    setCreditCards,
+    setDailyPhotos,
+    setEvents,
+    setLoveLogs,
+    setMoneyRecords,
+    setPartTimeJobs,
+    setSubscriptions,
+    setTags,
+    syncStatus,
     writeToken,
   ]);
 

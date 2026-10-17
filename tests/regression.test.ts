@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {
+  adoptCalendarSnapshot,
+  checkCalendarSnapshotUpdate,
+  fetchCalendarSnapshot,
+} from '../src/api/calendarApi.ts';
 import { buildCreditCardPaymentSchedules } from '../src/utils/creditCard.ts';
 import { rankEventTemplateCandidates, scoreEventSuggestion } from '../src/utils/eventTemplates.ts';
 import { getRecurrenceInterval, normalizeRecurrenceInterval } from '../src/utils/recurrenceForm.ts';
@@ -273,4 +278,55 @@ test('title query filters unrelated suggestions and exact match wins', () => {
 
   const ranked = rankEventTemplateCandidates(events, '2026-10-17', [], { title: '大学' });
   assert.deepEqual(ranked.map((event) => event.id), ['exact', 'prefix']);
+});
+
+test('remote version polling detects a newer server version', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    adoptCalendarSnapshot('default', emptySnapshot(), 3);
+    globalThis.fetch = async () => new Response(JSON.stringify({ calendarId: 'default', version: 4 }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const update = await checkCalendarSnapshotUpdate('default', 'token');
+    assert.deepEqual(update, { changed: true, calendarId: 'default', version: 4 });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('fetching a newer snapshot does not silently adopt it as the sync base', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    adoptCalendarSnapshot('default', emptySnapshot(), 3);
+    let call = 0;
+    globalThis.fetch = async () => {
+      call += 1;
+      if (call === 1) {
+        return new Response(JSON.stringify({
+          calendarId: 'default',
+          version: 4,
+          snapshot: { ...emptySnapshot(), events: [makeEvent({ id: 'remote' })] },
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({ calendarId: 'default', version: 4 }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    const fetched = await fetchCalendarSnapshot('default', 'token');
+    assert.equal(fetched.version, 4);
+    assert.equal(fetched.snapshot.events[0].id, 'remote');
+
+    const stillChanged = await checkCalendarSnapshotUpdate('default', 'token');
+    assert.equal(stillChanged.changed, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
