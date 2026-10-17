@@ -12,7 +12,9 @@ React + TypeScript + Vite で作る、予定・ToDo・お金・日別写真・�
 - ローカル開発では `localStorage` 保存
 - 本番HTTPSでは同一originのHTTP APIを利用
 - Cloudflare版では D1 にカレンダー全体のJSON snapshotを保存
+- D1には最新50世代のsnapshot履歴も保持し、任意versionの参照・復元が可能
 - 画像は R2 に保存し、DBには固定URLではなく `imageKey` とメタデータを保存
+- 日別写真は毎日 `BACKUPS` R2 bucket へ世代バックアップし、同一ETagは重複保存しない
 - 共有トークン `WRITE_TOKEN` で読み書きAPIと画像APIを保護
 - AI連携は未実装
 
@@ -55,6 +57,9 @@ React + TypeScript + Vite で作る、予定・ToDo・お金・日別写真・�
   - 手動天気背景: 晴れ、雨、雷、曇り、雪、霰・雹
   - 設定でON/OFF
 - JSONバックアップの書き出し / 読み込み
+- カレンダーversion履歴 / 復元API
+  - 保存ごとに履歴を自動記録し、最新50世代を保持
+  - 過去versionをプレビューし、現在versionを楽観ロックしたうえで新versionとして復元
 
 ## Architecture
 
@@ -200,7 +205,8 @@ VITE_CALENDAR_ID=default
 
 ```text
 D1 database: yomi-calendar-share-db
-R2 bucket:   yomi-calendar-share-images
+R2 images:   yomi-calendar-share-images
+R2 backups:  yomi-calendar-share-backups
 ```
 
 `wrangler.toml`:
@@ -214,6 +220,10 @@ database_id = "your-d1-database-id"
 [[r2_buckets]]
 binding = "IMAGES"
 bucket_name = "yomi-calendar-share-images"
+
+[[r2_buckets]]
+binding = "BACKUPS"
+bucket_name = "yomi-calendar-share-backups"
 ```
 
 作成例:
@@ -222,6 +232,7 @@ bucket_name = "yomi-calendar-share-images"
 npx wrangler login
 npx wrangler d1 create yomi-calendar-share-db
 npx wrangler r2 bucket create yomi-calendar-share-images
+npx wrangler r2 bucket create yomi-calendar-share-backups
 ```
 
 Secret:
@@ -244,6 +255,8 @@ npm run cf:dev
 npm run db:migrate:remote
 ```
 
+`0003_add_snapshot_history.sql` 以降では `calendar_snapshot_history` と履歴triggerも作成されます。**version履歴対応Workerをdeployする前にmigrationを適用してください。**
+
 Deploy:
 
 ```bash
@@ -260,6 +273,9 @@ npm run cf:deploy
 - カレンダーデータ保存
 - 画像アップロード
 - 画像表示
+- 画像バックアップ世代一覧 / 復元API
+- 画像ストレージ統計 / 孤児画像GC API
+- カレンダーversion履歴一覧 / プレビュー / 復元API
 
 注意:
 
@@ -269,7 +285,7 @@ npm run cf:deploy
 
 ## Data Model
 
-現在は D1 に `calendar_snapshots` としてカレンダー全体をJSON snapshotで保存しています。
+現在は D1 に `calendar_snapshots` としてカレンダー全体をJSON snapshotで保存し、`calendar_snapshot_history` に最新50versionの履歴を保持します。
 
 理由:
 
@@ -300,6 +316,11 @@ settings
 - DBには `imageKey` とmetadataを保存
 - R2の固定公開URLは保存しない
 - 表示URLはAPI経由で生成
+- 毎日のCronで `IMAGES` から `BACKUPS` へETag単位の世代バックアップを作成
+- `GET /api/admin/image-backups?imageKey=...` でバックアップ世代一覧を取得
+- `POST /api/admin/image-restore` で指定世代または最新世代を復元
+- `GET /api/admin/image-storage` でR2使用量・孤児画像候補・参照切れを確認
+- `POST /api/admin/image-gc` は最新D1 snapshotで再確認した孤児だけを、明示確認付きで削除
 
 将来自宅サーバーでは、同じ `imageKey` をローカルファイルパスやMinIO keyへ置き換えます。
 
