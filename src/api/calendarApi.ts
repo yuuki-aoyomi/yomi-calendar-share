@@ -3,7 +3,7 @@ import type { CalendarDataSnapshot } from '../repositories/calendarRepository';
 import { mergeCalendarSnapshots } from '../utils/calendarSync';
 import type { RemoteSaveResult } from '../utils/remoteSave';
 
-type CalendarSnapshotPayload = {
+export type CalendarSnapshotPayload = {
   calendarId: string;
   snapshot: CalendarDataSnapshot;
   version: number;
@@ -92,7 +92,7 @@ export const shouldUseRemoteApi = () => {
   return protocol === 'https:' && !isLocalHost;
 };
 
-const fetchCalendarSnapshot = async (
+export const fetchCalendarSnapshot = async (
   calendarId: string,
   writeToken: string,
 ): Promise<CalendarSnapshotPayload> => {
@@ -100,6 +100,7 @@ const fetchCalendarSnapshot = async (
     headers: {
       authorization: `Bearer ${writeToken}`,
     },
+    cache: 'no-store',
   });
 
   if (!response.ok) {
