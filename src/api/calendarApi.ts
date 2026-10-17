@@ -45,6 +45,13 @@ type RemoteCalendarState = {
   snapshot: CalendarDataSnapshot;
 };
 
+export type RemoteCalendarUpdate = {
+  changed: boolean;
+  calendarId: string;
+  version: number;
+  snapshot: CalendarDataSnapshot;
+};
+
 let remoteCalendarState: RemoteCalendarState | undefined;
 let reloadRequired = false;
 
@@ -80,7 +87,10 @@ export const shouldUseRemoteApi = () => {
   return protocol === 'https:' && !isLocalHost;
 };
 
-export const loadCalendarSnapshot = async (calendarId: string, writeToken: string): Promise<CalendarDataSnapshot> => {
+const fetchCalendarSnapshot = async (
+  calendarId: string,
+  writeToken: string,
+): Promise<CalendarSnapshotPayload> => {
   const response = await fetch(apiUrl(`/api/calendar/${encodeURIComponent(calendarId)}`), {
     headers: {
       authorization: `Bearer ${writeToken}`,
@@ -91,14 +101,39 @@ export const loadCalendarSnapshot = async (calendarId: string, writeToken: strin
     throw new Error('カレンダーデータの読み込みに失敗しました。');
   }
 
-  const payload = (await response.json()) as CalendarSnapshotPayload;
-  remoteCalendarState = {
-    calendarId,
+  return (await response.json()) as CalendarSnapshotPayload;
+};
+
+export const adoptCalendarSnapshot = (
+  calendarId: string,
+  snapshot: CalendarDataSnapshot,
+  version: number,
+) => {
+  remoteCalendarState = { calendarId, snapshot, version };
+  reloadRequired = false;
+};
+
+export const loadCalendarSnapshot = async (calendarId: string, writeToken: string): Promise<CalendarDataSnapshot> => {
+  const payload = await fetchCalendarSnapshot(calendarId, writeToken);
+  adoptCalendarSnapshot(calendarId, payload.snapshot, payload.version);
+  return payload.snapshot;
+};
+
+export const checkCalendarSnapshotUpdate = async (
+  calendarId: string,
+  writeToken: string,
+): Promise<RemoteCalendarUpdate> => {
+  const payload = await fetchCalendarSnapshot(calendarId, writeToken);
+  const currentVersion = remoteCalendarState?.calendarId === calendarId
+    ? remoteCalendarState.version
+    : undefined;
+
+  return {
+    changed: currentVersion === undefined || payload.version > currentVersion,
+    calendarId: payload.calendarId,
     version: payload.version,
     snapshot: payload.snapshot,
   };
-  reloadRequired = false;
-  return payload.snapshot;
 };
 
 const putCalendarSnapshot = async (
