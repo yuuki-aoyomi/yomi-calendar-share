@@ -34,6 +34,16 @@ type CalendarVersionRow = {
   version: number;
 };
 
+type CalendarHistoryRow = {
+  snapshot_json: string;
+  version: number;
+  operation: string;
+  restored_from_version: number | null;
+  created_at: string;
+};
+
+type CalendarHistoryMetadataRow = Omit<CalendarHistoryRow, 'snapshot_json'>;
+
 type SnapshotJsonRow = {
   snapshot_json: string;
 };
@@ -52,6 +62,7 @@ type CloudflareCacheStorage = CacheStorage & {
 const maxSnapshotBytes = 1_000_000;
 const maxImageBytes = 2 * 1024 * 1024;
 const maxGcKeysPerRequest = 100;
+const maxHistoryEntries = 50;
 const imageSourcePrefix = 'daily-images/optimized/';
 
 // Cloudflare専用のentrypointです。アプリ本体のHTTP契約はserver/core側へ逃がします。
@@ -62,6 +73,10 @@ export default {
   },
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname.startsWith('/api/calendar-history/')) {
+      return handleCalendarHistoryRequest(request, env, url);
+    }
 
     if (url.pathname.startsWith('/api/calendar/')) {
       return handleCalendarRequest(request, env, url);
@@ -210,9 +225,139 @@ async function handleCalendarRequest(request: Request, env: Env, url: URL): Prom
   return jsonError('method_not_allowed', 'Unsupported calendar method.', 405);
 }
 
+async function handleCalendarHistoryRequest(request: Request, env: Env, url: URL): Promise<Response> {
+  const unauthorizedResponse = requireWriteToken(request, env);
+  if (unauthorizedResponse) return unauthorizedResponse;
+
+  const calendarId = decodeURIComponent(url.pathname.replace('/api/calendar-history/', '')).trim();
+  if (!calendarId) {
+    return jsonError('bad_request', 'calendarId is required.', 400);
+  }
+
+  if (request.method === 'GET') {
+    const versionParam = url.searchParams.get('version');
+
+    if (versionParam !== null) {
+      const version = Number(versionParam);
+      if (!Number.isInteger(version) || version < 1) {
+        return jsonError('bad_request', 'version must be a positive integer.', 400);
+      }
+
+      const row = await env.DB.prepare(
+        `
+          SELECT snapshot_json, version, operation, restored_from_version, created_at
+          FROM calendar_snapshot_history
+          WHERE calendar_id = ? AND version = ?
+        `,
+      )
+        .bind(calendarId, version)
+        .first<CalendarHistoryRow>();
+
+      if (!row) return jsonError('not_found', 'Calendar history version not found.', 404);
+
+      return json({
+        calendarId,
+        version: row.version,
+        operation: row.operation,
+        restoredFromVersion: row.restored_from_version,
+        createdAt: row.created_at,
+        snapshot: parseCalendarSnapshot(row.snapshot_json),
+      });
+    }
+
+    const result = await env.DB.prepare(
+      `
+        SELECT version, operation, restored_from_version, created_at
+        FROM calendar_snapshot_history
+        WHERE calendar_id = ?
+        ORDER BY version DESC
+        LIMIT ?
+      `,
+    )
+      .bind(calendarId, maxHistoryEntries)
+      .all<CalendarHistoryMetadataRow>();
+
+    return json({
+      calendarId,
+      entries: (result.results ?? []).map((row) => ({
+        version: row.version,
+        operation: row.operation,
+        restoredFromVersion: row.restored_from_version,
+        createdAt: row.created_at,
+      })),
+    });
+  }
+
+  if (request.method === 'POST') {
+    const body = await request.json<{ version?: number; expectedVersion?: number }>().catch(() => undefined);
+    if (!Number.isInteger(body?.version) || (body?.version ?? 0) < 1) {
+      return jsonError('bad_request', 'version must be a positive integer.', 400);
+    }
+    if (!Number.isInteger(body?.expectedVersion) || (body?.expectedVersion ?? -1) < 1) {
+      return jsonError('bad_request', 'expectedVersion must be a positive integer.', 400);
+    }
+
+    const restoreVersion = body?.version as number;
+    const expectedVersion = body?.expectedVersion as number;
+    const source = await env.DB.prepare(
+      `
+        SELECT snapshot_json, version, operation, restored_from_version, created_at
+        FROM calendar_snapshot_history
+        WHERE calendar_id = ? AND version = ?
+      `,
+    )
+      .bind(calendarId, restoreVersion)
+      .first<CalendarHistoryRow>();
+
+    if (!source) return jsonError('not_found', 'Calendar history version not found.', 404);
+
+    const result = await env.DB.prepare(
+      `
+        UPDATE calendar_snapshots
+        SET snapshot_json = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE calendar_id = ? AND version = ?
+      `,
+    )
+      .bind(source.snapshot_json, calendarId, expectedVersion)
+      .run();
+
+    if ((result.meta.changes ?? 0) === 0) {
+      const current = await env.DB.prepare(
+        'SELECT version FROM calendar_snapshots WHERE calendar_id = ?',
+      )
+        .bind(calendarId)
+        .first<CalendarVersionRow>();
+
+      return json({
+        ok: false as const,
+        error: {
+          code: 'version_conflict',
+          message: 'Calendar data was updated before the restore completed.',
+        },
+        calendarId,
+        version: current?.version ?? 0,
+      }, 409);
+    }
+
+    const newVersion = expectedVersion + 1;
+    await env.DB.prepare(
+      `
+        UPDATE calendar_snapshot_history
+        SET operation = 'restore', restored_from_version = ?
+        WHERE calendar_id = ? AND version = ?
+      `,
+    )
+      .bind(restoreVersion, calendarId, newVersion)
+      .run();
+
+    return json({ ok: true as const, calendarId, version: newVersion, restoredFromVersion: restoreVersion });
+  }
+
+  return jsonError('method_not_allowed', 'Unsupported calendar history method.', 405);
+}
+
 async function handleImageUpload(request: Request, env: Env): Promise<Response> {
   const unauthorizedResponse = requireWriteToken(request, env);
-
   if (unauthorizedResponse) return unauthorizedResponse;
 
   const formData = await request.formData();
@@ -221,10 +366,7 @@ async function handleImageUpload(request: Request, env: Env): Promise<Response> 
   const date = String(formData.get('date') ?? 'unknown-date').trim();
   const photoId = String(formData.get('photoId') ?? crypto.randomUUID()).trim();
 
-  if (!(file instanceof File)) {
-    return jsonError('bad_request', 'file is required.', 400);
-  }
-
+  if (!(file instanceof File)) return jsonError('bad_request', 'file is required.', 400);
   if (file.size > maxImageBytes) {
     return jsonError('payload_too_large', 'image is larger than 2MB after compression.', 413);
   }
@@ -233,9 +375,7 @@ async function handleImageUpload(request: Request, env: Env): Promise<Response> 
   const key = `daily-images/optimized/${calendarId}/${date}/${photoId}.${extension}`;
 
   await env.IMAGES.put(key, file.stream(), {
-    httpMetadata: {
-      contentType: file.type || 'application/octet-stream',
-    },
+    httpMetadata: { contentType: file.type || 'application/octet-stream' },
   });
 
   return json<ImageUploadResponse>({
@@ -247,27 +387,18 @@ async function handleImageUpload(request: Request, env: Env): Promise<Response> 
 }
 
 async function handleImageRead(request: Request, env: Env, url: URL): Promise<Response> {
-  if (request.method !== 'GET') {
-    return jsonError('method_not_allowed', 'Unsupported image method.', 405);
-  }
+  if (request.method !== 'GET') return jsonError('method_not_allowed', 'Unsupported image method.', 405);
 
   const cache = (caches as CloudflareCacheStorage).default;
   const unauthorizedResponse = requireWriteToken(request, env);
-
   if (unauthorizedResponse) return unauthorizedResponse;
 
   const cachedResponse = await cache.match(request);
-
-  if (cachedResponse) {
-    return cachedResponse;
-  }
+  if (cachedResponse) return cachedResponse;
 
   const key = decodeURIComponent(url.pathname.replace('/api/images/', ''));
   const object = await env.IMAGES.get(key);
-
-  if (!object) {
-    return jsonError('not_found', 'Image not found.', 404);
-  }
+  if (!object) return jsonError('not_found', 'Image not found.', 404);
 
   const headers = new Headers();
   object.writeHttpMetadata(headers);
@@ -275,9 +406,7 @@ async function handleImageRead(request: Request, env: Env, url: URL): Promise<Re
   headers.set('cache-control', 'public, max-age=31536000, immutable');
 
   const response = new Response(object.body, { headers });
-
   await cache.put(request, response.clone());
-
   return response;
 }
 
@@ -315,7 +444,6 @@ async function handleImageRestore(request: Request, env: Env): Promise<Response>
 
   const backupPrefix = getImageBackupPrefix(imageKey);
   let backupKey = body?.backupKey?.trim() ?? '';
-
   if (backupKey && !backupKey.startsWith(backupPrefix)) {
     return jsonError('bad_request', 'backupKey does not belong to imageKey.', 400);
   }
@@ -326,21 +454,14 @@ async function handleImageRestore(request: Request, env: Env): Promise<Response>
     backupKey = versions[0]?.key ?? '';
   }
 
-  if (!backupKey) {
-    return jsonError('not_found', 'No backup exists for this image.', 404);
-  }
+  if (!backupKey) return jsonError('not_found', 'No backup exists for this image.', 404);
 
   const backup = await env.BACKUPS.get(backupKey);
-  if (!backup) {
-    return jsonError('not_found', 'Backup object not found.', 404);
-  }
+  if (!backup) return jsonError('not_found', 'Backup object not found.', 404);
 
   await env.IMAGES.put(imageKey, backup.body, {
     httpMetadata: backup.httpMetadata,
-    customMetadata: {
-      restoredFrom: backupKey,
-      restoredAt: new Date().toISOString(),
-    },
+    customMetadata: { restoredFrom: backupKey, restoredAt: new Date().toISOString() },
   });
 
   return json({ ok: true as const, imageKey, backupKey });
@@ -384,9 +505,7 @@ async function handleImageGc(request: Request, env: Env): Promise<Response> {
   const objects = await listAllManagedImages(env.IMAGES);
   const deletableKeys = selectConfirmedOrphans(requestedKeys, objects, referencedKeys);
 
-  for (const key of deletableKeys) {
-    await env.IMAGES.delete(key);
-  }
+  for (const key of deletableKeys) await env.IMAGES.delete(key);
 
   const deleted = new Set(deletableKeys);
   return json({
@@ -408,9 +527,7 @@ function getImageExtension(contentType: string, fileName: string): string {
 }
 
 function requireWriteToken(request: Request, env: Env): Response | undefined {
-  if (!env.WRITE_TOKEN) {
-    return jsonError('server_misconfigured', 'WRITE_TOKEN is not configured.', 500);
-  }
+  if (!env.WRITE_TOKEN) return jsonError('server_misconfigured', 'WRITE_TOKEN is not configured.', 500);
 
   const authorization = request.headers.get('authorization') ?? '';
   const bearerToken = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length).trim() : '';
