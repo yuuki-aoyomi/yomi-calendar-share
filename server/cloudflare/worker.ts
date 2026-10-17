@@ -16,6 +16,10 @@ type CalendarSnapshotRow = {
   version: number;
 };
 
+type CalendarVersionRow = {
+  version: number;
+};
+
 type ImageUploadResponse = {
   key: string;
   publicUrl: string;
@@ -65,6 +69,16 @@ async function handleCalendarRequest(request: Request, env: Env, url: URL): Prom
     const unauthorizedResponse = requireWriteToken(request, env);
 
     if (unauthorizedResponse) return unauthorizedResponse;
+
+    if (url.searchParams.get('versionOnly') === '1') {
+      const versionRow = await env.DB.prepare(
+        'SELECT version FROM calendar_snapshots WHERE calendar_id = ?',
+      )
+        .bind(calendarId)
+        .first<CalendarVersionRow>();
+
+      return json({ calendarId, version: versionRow?.version ?? 0 });
+    }
 
     const row = await env.DB.prepare(
       'SELECT snapshot_json, version FROM calendar_snapshots WHERE calendar_id = ?',

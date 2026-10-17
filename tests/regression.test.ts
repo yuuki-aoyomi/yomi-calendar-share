@@ -4,6 +4,7 @@ import { buildCreditCardPaymentSchedules } from '../src/utils/creditCard.ts';
 import { rankEventTemplateCandidates, scoreEventSuggestion } from '../src/utils/eventTemplates.ts';
 import { getRecurrenceInterval, normalizeRecurrenceInterval } from '../src/utils/recurrenceForm.ts';
 import { persistRemoteSnapshot } from '../src/utils/remoteSave.ts';
+import { createSerialTaskQueue } from '../src/utils/serialTaskQueue.ts';
 import { getHighlightedPendingTodos } from '../src/utils/todo.ts';
 import type { CalendarDataSnapshot } from '../src/repositories/calendarRepository.ts';
 import type { CalendarEvent, CreditCardSetting, MoneyRecord } from '../src/types/calendar.ts';
@@ -102,6 +103,51 @@ test('unchanged remote snapshot does not issue another save', async () => {
 
   assert.equal(result.status, 'unchanged');
   assert.equal(called, false);
+});
+
+test('serial task queue never overlaps remote save operations', async () => {
+  const enqueue = createSerialTaskQueue();
+  const order: string[] = [];
+  let releaseFirst!: () => void;
+  const firstGate = new Promise<void>((resolve) => {
+    releaseFirst = resolve;
+  });
+
+  const first = enqueue(async () => {
+    order.push('first:start');
+    await firstGate;
+    order.push('first:end');
+    return 1;
+  });
+  const second = enqueue(async () => {
+    order.push('second:start');
+    order.push('second:end');
+    return 2;
+  });
+
+  await Promise.resolve();
+  assert.deepEqual(order, ['first:start']);
+  releaseFirst();
+  assert.deepEqual(await Promise.all([first, second]), [1, 2]);
+  assert.deepEqual(order, ['first:start', 'first:end', 'second:start', 'second:end']);
+});
+
+test('serial task queue continues after a failed operation', async () => {
+  const enqueue = createSerialTaskQueue();
+  const order: string[] = [];
+
+  const failed = enqueue(async () => {
+    order.push('failed');
+    throw new Error('expected');
+  });
+  const next = enqueue(async () => {
+    order.push('next');
+    return 'ok';
+  });
+
+  await assert.rejects(failed, /expected/);
+  assert.equal(await next, 'ok');
+  assert.deepEqual(order, ['failed', 'next']);
 });
 
 test('todo highlight includes only unfinished enabled todos due today or earlier', () => {
