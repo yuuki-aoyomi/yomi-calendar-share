@@ -268,6 +268,7 @@ npm run cf:deploy
 - 画像アップロード
 - 画像表示
 - 画像バックアップ世代一覧 / 復元API
+- 画像ストレージ統計 / 孤児画像GC API
 
 注意:
 
@@ -311,6 +312,8 @@ settings
 - 毎日のCronで `IMAGES` から `BACKUPS` へETag単位の世代バックアップを作成
 - `GET /api/admin/image-backups?imageKey=...` でバックアップ世代一覧を取得
 - `POST /api/admin/image-restore` で指定世代または最新世代を復元
+- `GET /api/admin/image-storage` でR2使用量・孤児画像候補・参照切れを確認
+- `POST /api/admin/image-gc` は最新D1 snapshotで再確認した孤児だけを、明示確認付きで削除
 
 将来自宅サーバーでは、同じ `imageKey` をローカルファイルパスやMinIO keyへ置き換えます。
 
