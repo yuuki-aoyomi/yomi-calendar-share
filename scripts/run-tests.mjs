@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { readdirSync, rmSync } from 'node:fs';
-import { basename, resolve } from 'node:path';
+import { basename } from 'node:path';
+import { buildSync } from 'esbuild';
 
 const testFiles = readdirSync('tests')
   .filter((name) => name.endsWith('.test.ts'))
@@ -30,17 +31,19 @@ const runCommand = (command, args, description) => {
 
 rmSync('.tmp-tests', { recursive: true, force: true });
 
-// Run the esbuild JavaScript CLI using Node directly, avoiding Windows .cmd
-// wrappers that spawnSync cannot reliably execute without a shell.
-const esbuildCli = resolve('node_modules', 'esbuild', 'bin', 'esbuild');
-runCommand(process.execPath, [
-  esbuildCli,
-  ...testFiles,
-  '--bundle',
-  '--platform=node',
-  '--format=esm',
-  '--outdir=.tmp-tests',
-], 'esbuild');
+try {
+  buildSync({
+    entryPoints: testFiles,
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    outdir: '.tmp-tests',
+    logLevel: 'info',
+  });
+} catch (error) {
+  console.error('esbuild failed:', error);
+  process.exit(1);
+}
 
 const compiledTests = testFiles.map((file) => `.tmp-tests/${basename(file, '.ts')}.js`);
 runCommand(process.execPath, ['--test', ...compiledTests], 'Node test runner');
