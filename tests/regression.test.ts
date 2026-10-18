@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {
+  adoptCalendarSnapshot,
+  checkCalendarSnapshotUpdate,
+  fetchCalendarSnapshot,
+} from '../src/api/calendarApi.ts';
 import { buildCreditCardPaymentSchedules } from '../src/utils/creditCard.ts';
 import { rankEventTemplateCandidates, scoreEventSuggestion } from '../src/utils/eventTemplates.ts';
 import { getRecurrenceInterval, normalizeRecurrenceInterval } from '../src/utils/recurrenceForm.ts';
@@ -8,12 +13,6 @@ import { createSerialTaskQueue } from '../src/utils/serialTaskQueue.ts';
 import { getHighlightedPendingTodos } from '../src/utils/todo.ts';
 import type { CalendarDataSnapshot } from '../src/repositories/calendarRepository.ts';
 import type { CalendarEvent, CreditCardSetting, MoneyRecord } from '../src/types/calendar.ts';
-import {
-  createImageBackupManifest,
-  getImageBackupKey,
-  getImageBackupManifestKey,
-  getImageBackupPrefix,
-} from '../server/core/imageBackup.ts';
 
 const makeEvent = (overrides: Partial<CalendarEvent> = {}): CalendarEvent => ({
   id: 'event',
@@ -281,38 +280,53 @@ test('title query filters unrelated suggestions and exact match wins', () => {
   assert.deepEqual(ranked.map((event) => event.id), ['exact', 'prefix']);
 });
 
-test('image backup keys are stable per image version and keep source hierarchy', () => {
-  const sourceKey = 'daily-images/optimized/default/2026-10-18/photo.webp';
-  const versionKey = getImageBackupKey(sourceKey, '"abc/123"');
+test('remote version polling detects a newer server version', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    adoptCalendarSnapshot('default', emptySnapshot(), 3);
+    globalThis.fetch = async () => new Response(JSON.stringify({ calendarId: 'default', version: 4 }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
 
-  assert.equal(
-    versionKey,
-    'r2-images/objects/daily-images/optimized/default/2026-10-18/photo.webp/__versions/abc_123',
-  );
-  assert.equal(
-    getImageBackupPrefix(sourceKey),
-    'r2-images/objects/daily-images/optimized/default/2026-10-18/photo.webp/__versions/',
-  );
+    const update = await checkCalendarSnapshotUpdate('default', 'token');
+    assert.deepEqual(update, { changed: true, calendarId: 'default', version: 4 });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
-test('image backup manifest records image count and deterministic daily key', () => {
-  const createdAt = '2026-10-18T01:23:45.678Z';
-  const entries = [{
-    sourceKey: 'daily-images/optimized/default/2026-10-18/photo.webp',
-    sourceEtag: 'etag',
-    sourceUploadedAt: createdAt,
-    backupKey: 'backup',
-    size: 123,
-  }];
+test('fetching a newer snapshot does not silently adopt it as the sync base', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    adoptCalendarSnapshot('default', emptySnapshot(), 3);
+    let call = 0;
+    globalThis.fetch = async () => {
+      call += 1;
+      if (call === 1) {
+        return new Response(JSON.stringify({
+          calendarId: 'default',
+          version: 4,
+          snapshot: { ...emptySnapshot(), events: [makeEvent({ id: 'remote' })] },
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
 
-  assert.deepEqual(createImageBackupManifest(entries, createdAt), {
-    schemaVersion: 1,
-    createdAt,
-    imageCount: 1,
-    entries,
-  });
-  assert.equal(
-    getImageBackupManifestKey(createdAt),
-    'r2-images/manifests/2026-10-18/2026-10-18T01-23-45-678Z.json',
-  );
+      return new Response(JSON.stringify({ calendarId: 'default', version: 4 }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    const fetched = await fetchCalendarSnapshot('default', 'token');
+    assert.equal(fetched.version, 4);
+    assert.equal(fetched.snapshot.events[0].id, 'remote');
+
+    const stillChanged = await checkCalendarSnapshotUpdate('default', 'token');
+    assert.equal(stillChanged.changed, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

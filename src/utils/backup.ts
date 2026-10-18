@@ -9,6 +9,7 @@ import type {
   PartTimeJob,
   Subscription,
 } from '../types/calendar';
+import { assertReferenceIntegrity } from './referenceIntegrity';
 
 export const createBackupData = (data: AppBackupData['data']): AppBackupData => ({
   app: 'yomi-calendar-share',
@@ -38,20 +39,24 @@ export const readBackupFile = async (file: File): Promise<AppBackupData> => {
     throw new Error('対応していないバックアップファイルです。');
   }
 
+  const data: AppBackupData['data'] = {
+    events: normalizeArray<CalendarEvent>(parsed.data.events),
+    moneyRecords: normalizeArray<MoneyRecord>(parsed.data.moneyRecords),
+    loveLogs: normalizeArray<LoveLog>(parsed.data.loveLogs),
+    tags: normalizeArray<CalendarTag>(parsed.data.tags),
+    partTimeJobs: normalizeArray<PartTimeJob>(parsed.data.partTimeJobs),
+    creditCards: normalizeArray<CreditCardSetting>(parsed.data.creditCards),
+    subscriptions: normalizeArray<Subscription>(parsed.data.subscriptions),
+    dailyPhotos: normalizeArray<DailyPhoto>(parsed.data.dailyPhotos),
+  };
+
+  assertReferenceIntegrity(data);
+
   return {
     app: parsed.app,
     version: parsed.version,
     exportedAt: parsed.exportedAt,
-    data: {
-      events: normalizeArray<CalendarEvent>(parsed.data.events),
-      moneyRecords: normalizeArray<MoneyRecord>(parsed.data.moneyRecords),
-      loveLogs: normalizeArray<LoveLog>(parsed.data.loveLogs),
-      tags: normalizeArray<CalendarTag>(parsed.data.tags),
-      partTimeJobs: normalizeArray<PartTimeJob>(parsed.data.partTimeJobs),
-      creditCards: normalizeArray<CreditCardSetting>(parsed.data.creditCards),
-      subscriptions: normalizeArray<Subscription>(parsed.data.subscriptions),
-      dailyPhotos: normalizeArray<DailyPhoto>(parsed.data.dailyPhotos),
-    },
+    data,
   };
 };
 
