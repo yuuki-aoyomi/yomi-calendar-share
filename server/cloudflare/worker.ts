@@ -2,6 +2,13 @@ import type { CalendarDataSnapshot } from '../../src/repositories/calendarReposi
 import { defaultCalendarSnapshot, parseCalendarSnapshot } from '../core/calendarSnapshot';
 import { json, jsonError } from '../core/http';
 import { createCalendarBackup, type BackupRow } from '../core/calendarBackup';
+import {
+  createImageBackupManifest,
+  getImageBackupKey,
+  getImageBackupManifestKey,
+  getImageBackupPrefix,
+  type ImageBackupManifestEntry,
+} from '../core/imageBackup';
 
 type Env = {
   DB: D1Database;
@@ -33,17 +40,27 @@ type CloudflareCacheStorage = CacheStorage & {
 
 const maxSnapshotBytes = 1_000_000;
 const maxImageBytes = 2 * 1024 * 1024;
+const imageSourcePrefix = 'daily-images/optimized/';
 
 // Cloudflare専用のentrypointです。アプリ本体のHTTP契約はserver/core側へ逃がします。
 export default {
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(backupCalendarSnapshots(env));
+    ctx.waitUntil(backupDailyImages(env));
   },
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname.startsWith('/api/calendar/')) {
       return handleCalendarRequest(request, env, url);
+    }
+
+    if (url.pathname === '/api/admin/image-backups' && request.method === 'GET') {
+      return handleImageBackupList(request, env, url);
+    }
+
+    if (url.pathname === '/api/admin/image-restore' && request.method === 'POST') {
+      return handleImageRestore(request, env);
     }
 
     if (url.pathname === '/api/images' && request.method === 'POST') {
@@ -244,6 +261,71 @@ async function handleImageRead(request: Request, env: Env, url: URL): Promise<Re
   return response;
 }
 
+async function handleImageBackupList(request: Request, env: Env, url: URL): Promise<Response> {
+  const unauthorizedResponse = requireWriteToken(request, env);
+  if (unauthorizedResponse) return unauthorizedResponse;
+
+  const imageKey = url.searchParams.get('imageKey')?.trim() ?? '';
+  if (!imageKey.startsWith(imageSourcePrefix)) {
+    return jsonError('bad_request', 'A valid imageKey is required.', 400);
+  }
+
+  const versions = await listAllBackupObjects(env.BACKUPS, getImageBackupPrefix(imageKey));
+  versions.sort((a, b) => b.uploaded.getTime() - a.uploaded.getTime());
+
+  return json({
+    imageKey,
+    versions: versions.map((object) => ({
+      backupKey: object.key,
+      size: object.size,
+      uploadedAt: object.uploaded.toISOString(),
+    })),
+  });
+}
+
+async function handleImageRestore(request: Request, env: Env): Promise<Response> {
+  const unauthorizedResponse = requireWriteToken(request, env);
+  if (unauthorizedResponse) return unauthorizedResponse;
+
+  const body = await request.json<{ imageKey?: string; backupKey?: string }>().catch(() => undefined);
+  const imageKey = body?.imageKey?.trim() ?? '';
+  if (!imageKey.startsWith(imageSourcePrefix)) {
+    return jsonError('bad_request', 'A valid imageKey is required.', 400);
+  }
+
+  const backupPrefix = getImageBackupPrefix(imageKey);
+  let backupKey = body?.backupKey?.trim() ?? '';
+
+  if (backupKey && !backupKey.startsWith(backupPrefix)) {
+    return jsonError('bad_request', 'backupKey does not belong to imageKey.', 400);
+  }
+
+  if (!backupKey) {
+    const versions = await listAllBackupObjects(env.BACKUPS, backupPrefix);
+    versions.sort((a, b) => b.uploaded.getTime() - a.uploaded.getTime());
+    backupKey = versions[0]?.key ?? '';
+  }
+
+  if (!backupKey) {
+    return jsonError('not_found', 'No backup exists for this image.', 404);
+  }
+
+  const backup = await env.BACKUPS.get(backupKey);
+  if (!backup) {
+    return jsonError('not_found', 'Backup object not found.', 404);
+  }
+
+  await env.IMAGES.put(imageKey, backup.body, {
+    httpMetadata: backup.httpMetadata,
+    customMetadata: {
+      restoredFrom: backupKey,
+      restoredAt: new Date().toISOString(),
+    },
+  });
+
+  return json({ ok: true as const, imageKey, backupKey });
+}
+
 function getImageExtension(contentType: string, fileName: string): string {
   if (contentType === 'image/webp') return 'webp';
   if (contentType === 'image/png') return 'png';
@@ -293,4 +375,72 @@ async function backupCalendarSnapshots(env: Env): Promise<void> {
     customMetadata: { version: '1', rowCount: String(rows.length) },
   });
   console.log(`D1 backup saved: ${objectKey} (${rows.length} rows)`);
+}
+
+async function backupDailyImages(env: Env): Promise<void> {
+  const createdAt = new Date().toISOString();
+  const entries: ImageBackupManifestEntry[] = [];
+  let cursor: string | undefined;
+  let copiedCount = 0;
+
+  do {
+    const page = await env.IMAGES.list({ prefix: imageSourcePrefix, cursor, limit: 1000 });
+
+    for (const object of page.objects) {
+      const backupKey = getImageBackupKey(object.key, object.etag);
+      const existing = await env.BACKUPS.head(backupKey);
+
+      if (!existing) {
+        const source = await env.IMAGES.get(object.key);
+        if (!source) continue;
+
+        await env.BACKUPS.put(backupKey, source.body, {
+          httpMetadata: source.httpMetadata,
+          customMetadata: {
+            sourceKey: object.key,
+            sourceEtag: object.etag,
+            sourceUploadedAt: object.uploaded.toISOString(),
+            backedUpAt: createdAt,
+          },
+        });
+        copiedCount += 1;
+      }
+
+      entries.push({
+        sourceKey: object.key,
+        sourceEtag: object.etag,
+        sourceUploadedAt: object.uploaded.toISOString(),
+        backupKey,
+        size: object.size,
+      });
+    }
+
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+
+  const manifest = createImageBackupManifest(entries, createdAt);
+  const manifestKey = getImageBackupManifestKey(createdAt);
+  await env.BACKUPS.put(manifestKey, JSON.stringify(manifest), {
+    httpMetadata: { contentType: 'application/json' },
+    customMetadata: {
+      version: '1',
+      imageCount: String(entries.length),
+      copiedCount: String(copiedCount),
+    },
+  });
+
+  console.log(`R2 image backup saved: ${manifestKey} (${copiedCount} copied / ${entries.length} current)`);
+}
+
+async function listAllBackupObjects(bucket: R2Bucket, prefix: string): Promise<R2Object[]> {
+  const objects: R2Object[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const page = await bucket.list({ prefix, cursor, limit: 1000 });
+    objects.push(...page.objects);
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+
+  return objects;
 }

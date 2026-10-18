@@ -13,6 +13,7 @@ React + TypeScript + Vite で作る、予定・ToDo・お金・日別写真・�
 - 本番HTTPSでは同一originのHTTP APIを利用
 - Cloudflare版では D1 にカレンダー全体のJSON snapshotを保存
 - 画像は R2 に保存し、DBには固定URLではなく `imageKey` とメタデータを保存
+- 日別写真は毎日 `BACKUPS` R2 bucket へ世代バックアップし、同一ETagは重複保存しない
 - 共有トークン `WRITE_TOKEN` で読み書きAPIと画像APIを保護
 - AI連携は未実装
 
@@ -200,7 +201,8 @@ VITE_CALENDAR_ID=default
 
 ```text
 D1 database: yomi-calendar-share-db
-R2 bucket:   yomi-calendar-share-images
+R2 images:   yomi-calendar-share-images
+R2 backups:  yomi-calendar-share-backups
 ```
 
 `wrangler.toml`:
@@ -214,6 +216,10 @@ database_id = "your-d1-database-id"
 [[r2_buckets]]
 binding = "IMAGES"
 bucket_name = "yomi-calendar-share-images"
+
+[[r2_buckets]]
+binding = "BACKUPS"
+bucket_name = "yomi-calendar-share-backups"
 ```
 
 作成例:
@@ -222,6 +228,7 @@ bucket_name = "yomi-calendar-share-images"
 npx wrangler login
 npx wrangler d1 create yomi-calendar-share-db
 npx wrangler r2 bucket create yomi-calendar-share-images
+npx wrangler r2 bucket create yomi-calendar-share-backups
 ```
 
 Secret:
@@ -260,6 +267,7 @@ npm run cf:deploy
 - カレンダーデータ保存
 - 画像アップロード
 - 画像表示
+- 画像バックアップ世代一覧 / 復元API
 
 注意:
 
@@ -300,6 +308,9 @@ settings
 - DBには `imageKey` とmetadataを保存
 - R2の固定公開URLは保存しない
 - 表示URLはAPI経由で生成
+- 毎日のCronで `IMAGES` から `BACKUPS` へETag単位の世代バックアップを作成
+- `GET /api/admin/image-backups?imageKey=...` でバックアップ世代一覧を取得
+- `POST /api/admin/image-restore` で指定世代または最新世代を復元
 
 将来自宅サーバーでは、同じ `imageKey` をローカルファイルパスやMinIO keyへ置き換えます。
 
