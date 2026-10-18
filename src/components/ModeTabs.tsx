@@ -9,6 +9,7 @@ const tabs: Array<{ id: CalendarMode; icon: string; label: string; description: 
   { id: 'schedule', icon: '□', label: '予定', description: '日記・ToDo・写真メモ' },
   { id: 'money', icon: '¥', label: 'お金', description: '収入・支出・月合計' },
   { id: 'love', icon: '♡', label: 'ラブ', description: 'いいところ・ハート' },
+  { id: 'search', icon: '⌕', label: '検索', description: '横断検索' },
 ];
 
 // 3つの機能を画面遷移なしで切り替えるためのタブです。
