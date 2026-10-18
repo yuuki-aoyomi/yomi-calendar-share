@@ -12,19 +12,35 @@ if (testFiles.length === 0) {
   process.exit(1);
 }
 
+const runCommand = (command, args, description) => {
+  const result = spawnSync(command, args, { stdio: 'inherit' });
+  if (result.error) {
+    console.error(`${description} failed to start:`, result.error);
+    process.exit(1);
+  }
+  if (result.signal) {
+    console.error(`${description} terminated by signal ${result.signal}.`);
+    process.exit(1);
+  }
+  if (result.status !== 0) {
+    console.error(`${description} failed (exit code ${result.status ?? 'unknown'}).`);
+    process.exit(result.status ?? 1);
+  }
+};
+
 rmSync('.tmp-tests', { recursive: true, force: true });
 
-const esbuild = resolve('node_modules', '.bin', process.platform === 'win32' ? 'esbuild.cmd' : 'esbuild');
-const build = spawnSync(esbuild, [
+// Run the esbuild JavaScript CLI using Node directly, avoiding Windows .cmd
+// wrappers that spawnSync cannot reliably execute without a shell.
+const esbuildCli = resolve('node_modules', 'esbuild', 'bin', 'esbuild');
+runCommand(process.execPath, [
+  esbuildCli,
   ...testFiles,
   '--bundle',
   '--platform=node',
   '--format=esm',
   '--outdir=.tmp-tests',
-], { stdio: 'inherit' });
-
-if (build.status !== 0) process.exit(build.status ?? 1);
+], 'esbuild');
 
 const compiledTests = testFiles.map((file) => `.tmp-tests/${basename(file, '.ts')}.js`);
-const run = spawnSync(process.execPath, ['--test', ...compiledTests], { stdio: 'inherit' });
-process.exit(run.status ?? 1);
+runCommand(process.execPath, ['--test', ...compiledTests], 'Node test runner');
