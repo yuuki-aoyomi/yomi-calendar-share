@@ -1,4 +1,4 @@
-export type CalendarMode = 'schedule' | 'money' | 'love';
+export type CalendarMode = 'schedule' | 'money' | 'love' | 'search';
 
 export type EventCategory = 'schedule' | 'diary' | 'todo' | 'detail' | 'photo';
 
