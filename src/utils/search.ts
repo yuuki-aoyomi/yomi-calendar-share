@@ -38,8 +38,10 @@ export const searchCalendarData = (
   const query = normalizeText(filters.query ?? '');
   const selectedTags = new Set(filters.tagIds ?? []);
   const categories = new Set(filters.categories ?? []);
+  const eventOnlyFilter = selectedTags.size > 0 || categories.size > 0 || filters.todoDone !== undefined;
+  const moneyOnlyFilter = filters.moneyType !== undefined || Boolean(filters.creditCardId) || filters.minAmount !== undefined || filters.maxAmount !== undefined;
 
-  const eventResults: CalendarSearchResult[] = events
+  const eventResults: CalendarSearchResult[] = (moneyOnlyFilter ? [] : events)
     .filter((event) => inDateRange(event.date, filters.dateFrom, filters.dateTo))
     .filter((event) => includesQuery([event.title, event.memo, ...(event.tags ?? [])], query))
     .filter((event) => selectedTags.size === 0 || (event.tagIds ?? []).some((id) => selectedTags.has(id)))
@@ -56,7 +58,7 @@ export const searchCalendarData = (
       event,
     }));
 
-  const moneyResults: CalendarSearchResult[] = moneyRecords
+  const moneyResults: CalendarSearchResult[] = (eventOnlyFilter ? [] : moneyRecords)
     .filter((record) => inDateRange(record.date, filters.dateFrom, filters.dateTo))
     .filter((record) => includesQuery([record.category, record.memo], query))
     .filter((record) => !filters.moneyType || record.type === filters.moneyType)
