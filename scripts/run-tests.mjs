@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { readdirSync, rmSync } from 'node:fs';
-import { basename, resolve } from 'node:path';
+import { basename } from 'node:path';
+import { buildSync } from 'esbuild';
 
 const testFiles = readdirSync('tests')
   .filter((name) => name.endsWith('.test.ts'))
@@ -12,19 +13,37 @@ if (testFiles.length === 0) {
   process.exit(1);
 }
 
+const runCommand = (command, args, description) => {
+  const result = spawnSync(command, args, { stdio: 'inherit' });
+  if (result.error) {
+    console.error(`${description} failed to start:`, result.error);
+    process.exit(1);
+  }
+  if (result.signal) {
+    console.error(`${description} terminated by signal ${result.signal}.`);
+    process.exit(1);
+  }
+  if (result.status !== 0) {
+    console.error(`${description} failed (exit code ${result.status ?? 'unknown'}).`);
+    process.exit(result.status ?? 1);
+  }
+};
+
 rmSync('.tmp-tests', { recursive: true, force: true });
 
-const esbuild = resolve('node_modules', '.bin', process.platform === 'win32' ? 'esbuild.cmd' : 'esbuild');
-const build = spawnSync(esbuild, [
-  ...testFiles,
-  '--bundle',
-  '--platform=node',
-  '--format=esm',
-  '--outdir=.tmp-tests',
-], { stdio: 'inherit' });
-
-if (build.status !== 0) process.exit(build.status ?? 1);
+try {
+  buildSync({
+    entryPoints: testFiles,
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    outdir: '.tmp-tests',
+    logLevel: 'info',
+  });
+} catch (error) {
+  console.error('esbuild failed:', error);
+  process.exit(1);
+}
 
 const compiledTests = testFiles.map((file) => `.tmp-tests/${basename(file, '.ts')}.js`);
-const run = spawnSync(process.execPath, ['--test', ...compiledTests], { stdio: 'inherit' });
-process.exit(run.status ?? 1);
+runCommand(process.execPath, ['--test', ...compiledTests], 'Node test runner');
