@@ -89,3 +89,18 @@ test('combined results are sorted by newest date then stable presentation keys',
 
   assert.deepEqual(results.map((item) => item.id), ['newer', 'money-new', 'older']);
 });
+
+test('type-specific filters do not leak results from the other data type', () => {
+  const events = [event({ id: 'event', category: 'todo', done: false, tagIds: ['work'] })];
+  const records = [money({ id: 'record', type: 'expense', creditCardId: 'card-a', amount: 1500 })];
+
+  assert.deepEqual(searchCalendarData(events, records, { categories: ['todo'] }).map((item) => item.id), ['event']);
+  assert.deepEqual(searchCalendarData(events, records, { tagIds: ['work'] }).map((item) => item.id), ['event']);
+  assert.deepEqual(searchCalendarData(events, records, { todoDone: false }).map((item) => item.id), ['event']);
+  assert.deepEqual(searchCalendarData(events, records, { moneyType: 'expense' }).map((item) => item.id), ['record']);
+  assert.deepEqual(searchCalendarData(events, records, { creditCardId: 'card-a' }).map((item) => item.id), ['record']);
+  assert.deepEqual(searchCalendarData(events, records, { minAmount: 1000 }).map((item) => item.id), ['record']);
+  assert.deepEqual(searchCalendarData(events, records, { maxAmount: 2000 }).map((item) => item.id), ['record']);
+  assert.deepEqual(searchCalendarData(events, records, { categories: ['todo'], moneyType: 'expense' }), []);
+  assert.deepEqual(searchCalendarData(events, records, {} ).map((item) => item.id), ['event', 'record']);
+});
