@@ -10,6 +10,7 @@ import {
 import { appConfig } from './config/appConfig';
 import { Calendar } from './components/Calendar';
 import { ModeTabs } from './components/ModeTabs';
+import { SearchPanel } from './components/SearchPanel';
 import { ScheduleMode } from './components/ScheduleMode';
 import { MoneyMode } from './components/MoneyMode';
 import { LoveMode } from './components/LoveMode';
@@ -542,6 +543,15 @@ function App() {
 
         <section className="workspace-panel">
           <ModeTabs activeMode={activeMode} onChange={setActiveMode} />
+
+          {activeMode === 'search' && (
+            <SearchPanel events={events} moneyRecords={moneyRecords} tags={tags} creditCards={creditCards}
+              onOpenResult={(kind, date, id) => {
+                handleSelectDate(date);
+                setActiveMode(kind === 'event' ? 'schedule' : 'money');
+                if (kind === 'event') setCalendarEditRequest({ eventId: id, requestedAt: Date.now() });
+              }} />
+          )}
 
           {activeMode === 'schedule' && (
             <ScheduleMode
