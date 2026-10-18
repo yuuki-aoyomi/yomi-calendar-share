@@ -9,6 +9,13 @@ import {
   getImageBackupPrefix,
   type ImageBackupManifestEntry,
 } from '../core/imageBackup';
+import {
+  collectReferencedImageKeys,
+  managedImagePrefix,
+  selectConfirmedOrphans,
+  summarizeImageStorage,
+  type ImageObjectInfo,
+} from '../core/imageStorageGc';
 
 type Env = {
   DB: D1Database;
@@ -27,6 +34,10 @@ type CalendarVersionRow = {
   version: number;
 };
 
+type SnapshotJsonRow = {
+  snapshot_json: string;
+};
+
 type ImageUploadResponse = {
   key: string;
   publicUrl: string;
@@ -40,6 +51,7 @@ type CloudflareCacheStorage = CacheStorage & {
 
 const maxSnapshotBytes = 1_000_000;
 const maxImageBytes = 2 * 1024 * 1024;
+const maxGcKeysPerRequest = 100;
 const imageSourcePrefix = 'daily-images/optimized/';
 
 // Cloudflare専用のentrypointです。アプリ本体のHTTP契約はserver/core側へ逃がします。
@@ -61,6 +73,14 @@ export default {
 
     if (url.pathname === '/api/admin/image-restore' && request.method === 'POST') {
       return handleImageRestore(request, env);
+    }
+
+    if (url.pathname === '/api/admin/image-storage' && request.method === 'GET') {
+      return handleImageStorageSummary(request, env);
+    }
+
+    if (url.pathname === '/api/admin/image-gc' && request.method === 'POST') {
+      return handleImageGc(request, env);
     }
 
     if (url.pathname === '/api/images' && request.method === 'POST') {
@@ -326,6 +346,57 @@ async function handleImageRestore(request: Request, env: Env): Promise<Response>
   return json({ ok: true as const, imageKey, backupKey });
 }
 
+async function handleImageStorageSummary(request: Request, env: Env): Promise<Response> {
+  const unauthorizedResponse = requireWriteToken(request, env);
+  if (unauthorizedResponse) return unauthorizedResponse;
+
+  const snapshots = await loadAllCalendarSnapshots(env);
+  const referencedKeys = collectReferencedImageKeys(snapshots);
+  const objects = await listAllManagedImages(env.IMAGES);
+  const summary = summarizeImageStorage(objects, referencedKeys);
+  const existingKeys = new Set(objects.map((object) => object.key));
+
+  return json({
+    ...summary,
+    missingReferencedKeys: [...referencedKeys].filter((key) => !existingKeys.has(key)).sort(),
+  });
+}
+
+async function handleImageGc(request: Request, env: Env): Promise<Response> {
+  const unauthorizedResponse = requireWriteToken(request, env);
+  if (unauthorizedResponse) return unauthorizedResponse;
+
+  const body = await request.json<{ keys?: string[]; confirm?: string }>().catch(() => undefined);
+  const requestedKeys = body?.keys ?? [];
+
+  if (body?.confirm !== 'DELETE_ORPHANS') {
+    return jsonError('confirmation_required', 'confirm must be DELETE_ORPHANS.', 400);
+  }
+  if (!Array.isArray(requestedKeys) || requestedKeys.length === 0) {
+    return jsonError('bad_request', 'At least one image key is required.', 400);
+  }
+  if (requestedKeys.length > maxGcKeysPerRequest) {
+    return jsonError('bad_request', `A maximum of ${maxGcKeysPerRequest} keys can be deleted at once.`, 400);
+  }
+
+  const snapshots = await loadAllCalendarSnapshots(env);
+  const referencedKeys = collectReferencedImageKeys(snapshots);
+  const objects = await listAllManagedImages(env.IMAGES);
+  const deletableKeys = selectConfirmedOrphans(requestedKeys, objects, referencedKeys);
+
+  for (const key of deletableKeys) {
+    await env.IMAGES.delete(key);
+  }
+
+  const deleted = new Set(deletableKeys);
+  return json({
+    requestedCount: requestedKeys.length,
+    deletedCount: deletableKeys.length,
+    deletedKeys: deletableKeys,
+    skippedKeys: [...new Set(requestedKeys)].filter((key) => !deleted.has(key)).sort(),
+  });
+}
+
 function getImageExtension(contentType: string, fileName: string): string {
   if (contentType === 'image/webp') return 'webp';
   if (contentType === 'image/png') return 'png';
@@ -351,6 +422,37 @@ function requireWriteToken(request: Request, env: Env): Response | undefined {
   }
 
   return jsonError('unauthorized', 'Write token is invalid.', 401);
+}
+
+async function loadAllCalendarSnapshots(env: Env): Promise<CalendarDataSnapshot[]> {
+  const snapshots: CalendarDataSnapshot[] = [];
+  let offset = 0;
+  const pageSize = 100;
+
+  for (;;) {
+    const result = await env.DB.prepare(
+      'SELECT snapshot_json FROM calendar_snapshots ORDER BY calendar_id LIMIT ? OFFSET ?',
+    ).bind(pageSize, offset).all<SnapshotJsonRow>();
+    const page = result.results ?? [];
+    snapshots.push(...page.map((row) => parseCalendarSnapshot(row.snapshot_json)));
+    if (page.length < pageSize) break;
+    offset += page.length;
+  }
+
+  return snapshots;
+}
+
+async function listAllManagedImages(bucket: R2Bucket): Promise<ImageObjectInfo[]> {
+  const objects: ImageObjectInfo[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const page = await bucket.list({ prefix: managedImagePrefix, cursor, limit: 1000 });
+    objects.push(...page.objects.map((object) => ({ key: object.key, size: object.size })));
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+
+  return objects;
 }
 
 async function backupCalendarSnapshots(env: Env): Promise<void> {
