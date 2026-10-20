@@ -23,7 +23,6 @@ type Env = {
   BACKUPS: R2Bucket;
   ASSETS: Fetcher;
   WRITE_TOKEN: string;
-  RESTORE_ADMIN_TOKEN?: string;
 };
 
 type CalendarSnapshotRow = {
@@ -289,10 +288,6 @@ async function handleCalendarHistoryRequest(request: Request, env: Env, url: URL
   }
 
   if (request.method === 'POST') {
-    // Restore changes the entire calendar; WRITE_TOKEN alone must never authorize it.
-    if (!env.RESTORE_ADMIN_TOKEN) return jsonError('restore_disabled', 'RESTORE_ADMIN_TOKEN is not configured.', 503);
-    const supplied = request.headers.get('x-restore-admin-token') ?? '';
-    if (!supplied || supplied !== env.RESTORE_ADMIN_TOKEN) return jsonError('forbidden', 'Restore administrator permission required.', 403);
     const body = await request.json<{ version?: number; expectedVersion?: number }>().catch(() => undefined);
     if (!Number.isInteger(body?.version) || (body?.version ?? 0) < 1) {
       return jsonError('bad_request', 'version must be a positive integer.', 400);
