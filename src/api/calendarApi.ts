@@ -329,11 +329,11 @@ export const fetchCalendarHistoryPreview = async (
 };
 
 export const restoreCalendarVersion = async (
-  calendarId: string, writeToken: string, version: number, expectedVersion: number,
+  calendarId: string, writeToken: string, version: number, expectedVersion: number, adminToken: string,
 ): Promise<void> => {
   const response = await fetch(apiUrl(`/api/calendar-history/${encodeURIComponent(calendarId)}`), {
     method: 'POST',
-    headers: { authorization: `Bearer ${writeToken}`, 'content-type': 'application/json' },
+    headers: { authorization: `Bearer ${writeToken}`, 'x-restore-admin-token': adminToken, 'content-type': 'application/json' },
     body: JSON.stringify({ version, expectedVersion }),
     cache: 'no-store',
   });
