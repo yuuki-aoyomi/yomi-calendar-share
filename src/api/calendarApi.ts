@@ -108,8 +108,9 @@ export const fetchCalendarSnapshot = async (
     throw new Error('カレンダーデータの読み込みに失敗しました。');
   }
 
+  const payload = (await response.json()) as CalendarSnapshotPayload;
   await establishImageReadSession(calendarId, writeToken);
-  return (await response.json()) as CalendarSnapshotPayload;
+  return payload;
 };
 
 const fetchCalendarVersion = async (
@@ -290,7 +291,11 @@ export const uploadDailyPhoto = async ({
   return (await response.json()) as ImageUploadPayload;
 };
 
-export const withReadToken = (url: string, _writeToken: string) => url;
+export const withReadToken = (url: string, _writeToken: string) => {
+  // Old bookmarked image URLs must never carry long-lived credentials.
+  if (!url.startsWith('/api/images/')) return url;
+  return url.split('?')[0];
+};
 
 export const establishImageReadSession = async (calendarId: string, writeToken: string): Promise<void> => {
   const response = await fetch(apiUrl('/api/image-session'), {
