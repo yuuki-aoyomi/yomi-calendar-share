@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  fetchCalendarHistory, fetchCalendarHistoryPreview, fetchCalendarSnapshot, restoreCalendarVersion,
+  fetchCalendarHistory, fetchCalendarHistoryPreview, getLoadedCalendarVersion, restoreCalendarVersion,
   type CalendarHistoryEntry, type CalendarHistoryPreview,
 } from '../api/calendarApi';
 
@@ -53,11 +53,11 @@ export function CalendarHistoryModal({ calendarId, writeToken, canRestore, onClo
     setBusy(true);
     setError('');
     try {
-      // Obtain a fresh server version immediately before restore. The backend
-      // checks expectedVersion atomically and rejects concurrent updates with 409.
-      const current = await fetchCalendarSnapshot(calendarId, writeToken);
-      if (!canRestore) return;
-      await restoreCalendarVersion(calendarId, writeToken, preview.version, current.version);
+      // Use this tab's loaded version, never the latest fetched version.
+      // This prevents silently overwriting changes made by another device.
+      const expectedVersion = getLoadedCalendarVersion(calendarId);
+      if (expectedVersion === undefined) throw new Error('読み込み済みVersionが不明です。再読み込みしてください。');
+      await restoreCalendarVersion(calendarId, writeToken, preview.version, expectedVersion);
       onRestored();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '復元に失敗しました。');
