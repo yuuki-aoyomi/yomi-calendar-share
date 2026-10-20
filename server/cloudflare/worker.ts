@@ -286,8 +286,11 @@ async function authorizeImageRead(request: Request, env: Env, key: string): Prom
   const parts = cookieValue.split('.');
   if (parts.length !== 3 || !/^\d+$/.test(parts[1]) || !/^[0-9a-f]{64}$/.test(parts[2])) return false;
   const expiry = Number(parts[1]);
-  if (!Number.isSafeInteger(expiry) || expiry <= Math.floor(Date.now() / 1000)) return false;
-  const calendarId = decodeURIComponent(parts[0]);
+  const now = Math.floor(Date.now() / 1000);
+  if (!Number.isSafeInteger(expiry) || expiry <= now || expiry > now + imageSessionLifetimeSeconds) return false;
+  let calendarId: string;
+  try { calendarId = decodeURIComponent(parts[0]); }
+  catch { return false; }
   if (!key.startsWith(`daily-images/optimized/${calendarId}/`)) return false;
   const expected = await imageSessionSignature(`${parts[0]}.${parts[1]}`, env.WRITE_TOKEN);
   // Compare the full digest without short-circuiting on the first mismatching character.
