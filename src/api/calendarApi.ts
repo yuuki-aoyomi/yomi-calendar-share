@@ -108,6 +108,7 @@ export const fetchCalendarSnapshot = async (
     throw new Error('カレンダーデータの読み込みに失敗しました。');
   }
 
+  await establishImageReadSession(calendarId, writeToken);
   return (await response.json()) as CalendarSnapshotPayload;
 };
 
@@ -289,9 +290,15 @@ export const uploadDailyPhoto = async ({
   return (await response.json()) as ImageUploadPayload;
 };
 
-export const withReadToken = (url: string, writeToken: string) => {
-  if (!shouldUseRemoteApi() || !url.startsWith('/api/images/') || !writeToken.trim()) return url;
+export const withReadToken = (url: string, _writeToken: string) => url;
 
-  const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}token=${encodeURIComponent(writeToken)}`;
+export const establishImageReadSession = async (calendarId: string, writeToken: string): Promise<void> => {
+  const response = await fetch(apiUrl('/api/image-session'), {
+    method: 'POST',
+    headers: { authorization: `Bearer ${writeToken}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ calendarId }),
+    credentials: 'same-origin',
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(await getResponseErrorMessage(response, '画像閲覧セッションの作成に失敗しました。'));
 };
