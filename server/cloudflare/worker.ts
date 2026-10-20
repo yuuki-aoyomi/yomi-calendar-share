@@ -397,8 +397,8 @@ async function handleImageSession(request: Request, env: Env): Promise<Response>
   if (request.method !== 'POST') return jsonError('method_not_allowed', 'Unsupported method.', 405);
   const unauthorized = requireWriteToken(request, env);
   if (unauthorized) return unauthorized;
-  const body = await request.json<{ calendarId?: string }>().catch(() => undefined);
-  const calendarId = body?.calendarId?.trim();
+  const body = await request.json<{ calendarId?: unknown }>().catch(() => undefined);
+  const calendarId = typeof body?.calendarId === 'string' ? body.calendarId.trim() : undefined;
   if (!calendarId || calendarId.includes('/') || calendarId.length > 128) {
     return jsonError('bad_request', 'Invalid calendarId.', 400);
   }
