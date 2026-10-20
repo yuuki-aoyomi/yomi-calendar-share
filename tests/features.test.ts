@@ -3,6 +3,7 @@ import { createCalendarBackup, parseCalendarBackup } from '../server/core/calend
 import { getJapaneseHoliday } from '../src/utils/japaneseHolidays.ts';
 import { normalizeTime, validateEventForm } from '../src/utils/eventFormValidation.ts';
 import { mergeCalendarSnapshots } from '../src/utils/calendarSync.ts';
+import { getDisplayedSyncStatus } from '../src/utils/syncDisplay.ts';
 import { eventOccursOnDate } from '../src/utils/recurrence.ts';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
@@ -251,4 +252,13 @@ test('three-way merge detects concurrent edits to the same item', () => {
 
   assert.equal(result.conflicts.length, 1);
   assert.equal(result.conflicts[0].kind, 'concurrent_edit');
+});
+
+test('sync badge reports unsaved changes before the debounced network save starts', () => {
+  assert.equal(getDisplayedSyncStatus('saved', true), 'pending');
+  assert.equal(getDisplayedSyncStatus('saved', false), 'saved');
+  assert.equal(getDisplayedSyncStatus('saving', true), 'saving');
+  assert.equal(getDisplayedSyncStatus('failed', true), 'failed');
+  assert.equal(getDisplayedSyncStatus('reload-required', true), 'reload-required');
+  assert.equal(getDisplayedSyncStatus('offline', true), 'offline');
 });
