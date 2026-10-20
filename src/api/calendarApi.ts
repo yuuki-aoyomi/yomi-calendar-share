@@ -292,9 +292,24 @@ export const uploadDailyPhoto = async ({
 };
 
 export const withReadToken = (url: string, _writeToken: string) => {
-  // Old bookmarked image URLs must never carry long-lived credentials.
-  if (!url.startsWith('/api/images/')) return url;
-  return url.split('?')[0];
+  // Legacy snapshots may contain absolute same-origin image URLs with a
+  // long-lived WRITE_TOKEN in the query. Strip it before putting it in the DOM.
+  // Do not change arbitrary external images (e.g. user-supplied photo links).
+  try {
+    const parsed = new URL(url, typeof window === 'undefined' ? 'https://calendar.invalid' : window.location.origin);
+    if (!parsed.pathname.startsWith('/api/images/')) return url;
+    const relative = url.startsWith('/') && !url.startsWith('//');
+    const sameOrigin = typeof window === 'undefined'
+      ? parsed.origin === 'https://calendar.invalid'
+      : parsed.origin === window.location.origin;
+    // Image URLs never require a query: strip all legacy credentials, including
+    // on absolute URLs, while keeping the original host when cross-origin.
+    return relative || sameOrigin
+      ? parsed.pathname
+      : parsed.origin + parsed.pathname;
+  } catch {
+    return url;
+  }
 };
 
 export const establishImageReadSession = async (calendarId: string, writeToken: string): Promise<void> => {
