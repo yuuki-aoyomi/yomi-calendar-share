@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
-import worker from '../server/cloudflare/worker.ts';
 
 const migration = (file: string) => readFileSync(`migrations/${file}`, 'utf8');
 const createDb = () => {
