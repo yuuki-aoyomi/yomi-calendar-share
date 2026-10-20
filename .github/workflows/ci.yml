@@ -35,3 +35,6 @@ jobs:
 
       - name: Check Worker types
         run: npm run worker:check
+
+      - name: Smoke-test image authorization in Wrangler local HTTP runtime
+        run: node scripts/smoke-image-session.mjs
