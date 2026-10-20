@@ -295,3 +295,48 @@ export const withReadToken = (url: string, writeToken: string) => {
   const separator = url.includes('?') ? '&' : '?';
   return `${url}${separator}token=${encodeURIComponent(writeToken)}`;
 };
+export type CalendarHistoryEntry = {
+  version: number;
+  createdAt: string;
+  operation: string;
+  restoredFromVersion: number | null;
+};
+
+export type CalendarHistoryPreview = CalendarHistoryEntry & {
+  calendarId: string;
+  snapshot: CalendarDataSnapshot;
+};
+
+export const fetchCalendarHistory = async (calendarId: string, writeToken: string): Promise<CalendarHistoryEntry[]> => {
+  const response = await fetch(apiUrl(`/api/calendar-history/${encodeURIComponent(calendarId)}`), {
+    headers: { authorization: `Bearer ${writeToken}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(await getResponseErrorMessage(response, '変更履歴の取得に失敗しました。'));
+  const payload = (await response.json()) as { entries: CalendarHistoryEntry[] };
+  return payload.entries;
+};
+
+export const fetchCalendarHistoryPreview = async (
+  calendarId: string, writeToken: string, version: number,
+): Promise<CalendarHistoryPreview> => {
+  const response = await fetch(apiUrl(`/api/calendar-history/${encodeURIComponent(calendarId)}?version=${version}`), {
+    headers: { authorization: `Bearer ${writeToken}` },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(await getResponseErrorMessage(response, '履歴のプレビュー取得に失敗しました。'));
+  return (await response.json()) as CalendarHistoryPreview;
+};
+
+export const restoreCalendarVersion = async (
+  calendarId: string, writeToken: string, version: number, expectedVersion: number,
+): Promise<void> => {
+  const response = await fetch(apiUrl(`/api/calendar-history/${encodeURIComponent(calendarId)}`), {
+    method: 'POST',
+    headers: { authorization: `Bearer ${writeToken}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ version, expectedVersion }),
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(await getResponseErrorMessage(response,
+    response.status === 409 ? '別端末で変更されています。再読み込みしてから確認してください。' : '復元に失敗しました。'));
+};
