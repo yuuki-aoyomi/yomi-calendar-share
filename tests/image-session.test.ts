@@ -76,3 +76,32 @@ test('tampered signature, missing credentials, and malformed cookie are rejected
   }), env);
   assert.equal(withoutAuthorization.status, 401);
 });
+
+test('expired sessions cannot read images and malformed calendar scopes are rejected', async () => {
+  const cookie = await issueCookie();
+  const originalNow = Date.now;
+  try {
+    Date.now = () => originalNow() + (61 * 60 * 1000);
+    assert.equal((await worker.fetch(imageRequest(keyA, cookie), env)).status, 401);
+  } finally {
+    Date.now = originalNow;
+  }
+  for (const calendarId of ['../other', 'a/b', '']) {
+    const response = await worker.fetch(new Request(`${origin}/api/image-session`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${writeToken}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ calendarId }),
+    }), env);
+    assert.equal(response.status, 400);
+  }
+});
+
+test('session cookie cannot be used to call snapshot history restore', async () => {
+  const cookie = await issueCookie();
+  const result = await worker.fetch(new Request(`${origin}/api/calendar-history/default`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ version: 1, expectedVersion: 1 }),
+  }), env);
+  assert.equal(result.status, 401);
+});
