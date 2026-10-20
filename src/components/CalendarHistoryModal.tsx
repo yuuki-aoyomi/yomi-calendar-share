@@ -23,6 +23,7 @@ export function CalendarHistoryModal({ calendarId, writeToken, canRestore, onClo
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const requestSerial = useRef(0);
 
   useEffect(() => {
@@ -36,6 +37,7 @@ export function CalendarHistoryModal({ calendarId, writeToken, canRestore, onClo
   const selectVersion = async (version: number) => {
     const serial = ++requestSerial.current;
     setSelectedVersion(version);
+    setShowRestoreConfirm(false);
     setPreview(null);
     setError('');
     setBusy(true);
@@ -51,7 +53,7 @@ export function CalendarHistoryModal({ calendarId, writeToken, canRestore, onClo
 
   const restore = async () => {
     if (!canRestore || !preview || busy) return;
-    if (!window.confirm(`Version ${preview.version} の状態へカレンダー全体を復元します。現在の変更は新しい履歴に残ります。続行しますか？`)) return;
+    if (!showRestoreConfirm) { setShowRestoreConfirm(true); return; }
     setBusy(true);
     setError('');
     try {
@@ -68,45 +70,98 @@ export function CalendarHistoryModal({ calendarId, writeToken, canRestore, onClo
     }
   };
 
+
+  useEffect(() => {
+    const onEscape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !busy) onClose(); };
+    window.addEventListener('keydown', onEscape);
+    return () => window.removeEventListener('keydown', onEscape);
+  }, [busy, onClose]);
+
+  const latestVersion = entries[0]?.version;
+  const latestWasRestore = entries[0]?.operation === 'restore';
+  // The immediately preceding version is the snapshot that existed before
+  // the latest restore. Selecting it creates another version (undo restore).
+  const beforeLatestRestore = latestWasRestore ? entries.find((entry) => entry.version === (latestVersion ?? 0) - 1) : undefined;
+
   return (
-    <div className="modal-backdrop" role="presentation" onClick={onClose}>
-      <section className="modal-card" role="dialog" aria-modal="true" aria-label="カレンダー変更履歴"
-        onClick={(event) => event.stopPropagation()} style={{ maxWidth: 760, maxHeight: '85vh', overflowY: 'auto', padding: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
-          <h2>変更履歴・復元</h2>
-          <button type="button" onClick={onClose} aria-label="履歴を閉じる">閉じる</button>
-        </div>
-        <p className="helper-text">直近50世代を表示します。復元すると過去の状態を新しいVersionとして保存します。</p>
-        {!canRestore && <p role="status">未保存の変更・同期エラー・オフライン状態があるため復元を停止しています。</p>}
-        {error && <p role="alert" style={{ color: '#d45a5a' }}>{error}</p>}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) minmax(180px, 1fr)', gap: 20 }}>
+    <div className="modal-backdrop history-backdrop" role="presentation" onClick={() => { if (!busy) onClose(); }}>
+      <section className="history-dialog" role="dialog" aria-modal="true" aria-labelledby="history-dialog-title"
+        onClick={(event) => event.stopPropagation()}>
+        <header className="history-dialog-header">
           <div>
-            <h3>履歴一覧</h3>
-            {entries.length === 0 && !error && <p>履歴がありません。</p>}
-            {entries.map((entry) => (
-              <button key={entry.version} type="button" disabled={busy}
-                aria-pressed={selectedVersion === entry.version}
-                onClick={() => { void selectVersion(entry.version); }}
-                style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 8, padding: 10 }}>
-                Version {entry.version} ・ {entry.operation === 'restore' ? '復元' : '保存'}
-                <small style={{ display: 'block' }}>{displayDate(entry.createdAt)}</small>
-              </button>
-            ))}
+            <span className="history-eyebrow">VERSION HISTORY</span>
+            <h2 id="history-dialog-title">変更履歴・復元</h2>
+            <p>復元しても今の状態は履歴に保存されます。過去の状態への再復元も可能です。</p>
           </div>
-          <div>
+          <button type="button" className="history-close-button" onClick={onClose} disabled={busy} aria-label="履歴を閉じる">×</button>
+        </header>
+        {error && <p role="alert" className="history-error">{error}</p>}
+        <div className="history-dialog-grid">
+          <div className="history-list-pane">
+            <h3>履歴一覧 <span className="history-count">{entries.length}件</span></h3>
+            {beforeLatestRestore && (
+              <button type="button" className="history-undo-shortcut" disabled={busy}
+                onClick={() => { void selectVersion(beforeLatestRestore.version); }}>
+                ↶ 直前の復元を取り消す（Version {beforeLatestRestore.version}）
+              </button>
+            )}
+            {entries.length === 0 && !error && <p className="history-empty">まだ履歴がありません。</p>}
+            <div className="history-entries">
+              {entries.map((entry) => (
+                <button key={entry.version} type="button" className="history-entry"
+                  aria-pressed={selectedVersion === entry.version} disabled={busy}
+                  onClick={() => { void selectVersion(entry.version); }}>
+                  <span className="history-entry-main">
+                    <strong>Version {entry.version}</strong>
+                    <span className={entry.operation === 'restore' ? 'history-operation is-restore' : 'history-operation'}>
+                      {entry.operation === 'restore' ? '復元' : '保存'}
+                    </span>
+                  </span>
+                  <time className="history-entry-date">{displayDate(entry.createdAt)}</time>
+                  {entry.operation === 'restore' && entry.restoredFromVersion !== null && (
+                    <span className="history-source">Version {entry.restoredFromVersion} から復元</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="history-preview-pane">
             <h3>プレビュー</h3>
-            {busy && <p role="status">処理中です…</p>}
+            {busy && <p className="history-empty" role="status">処理中です…</p>}
+            {!busy && !preview && <p className="history-empty">左側からVersionを選ぶと、保存された状態を確認できます。</p>}
             {preview && !busy && (
-              <div>
-                <p>Version {preview.version} ({displayDate(preview.createdAt)})</p>
-                <p>予定: {preview.snapshot.events.length}件</p>
-                <p>家計: {preview.snapshot.moneyRecords.length}件</p>
-                <p>ラブログ: {preview.snapshot.loveLogs.length}件</p>
-                <p>写真: {preview.snapshot.dailyPhotos.length}件</p>
-                <p>タグ: {preview.snapshot.tags.length}件</p>
-                <p className="helper-text">復元対象は予定だけでなく、カレンダーの全データです。</p>
-                <button type="button" disabled={!canRestore || busy}
-                  onClick={() => { void restore(); }}>このVersionへ復元</button>
+              <div className="history-preview">
+                <div className="history-preview-title">
+                  <strong>Version {preview.version}</strong>
+                  <span>{displayDate(preview.createdAt)}</span>
+                </div>
+                {preview.operation === 'restore' && <p className="history-note">
+                  Version {preview.restoredFromVersion} から復元された履歴です。
+                </p>}
+                <div className="history-stats">
+                  <span>予定 <strong>{preview.snapshot.events.length}件</strong></span>
+                  <span>家計 <strong>{preview.snapshot.moneyRecords.length}件</strong></span>
+                  <span>ラブログ <strong>{preview.snapshot.loveLogs.length}件</strong></span>
+                  <span>写真 <strong>{preview.snapshot.dailyPhotos.length}件</strong></span>
+                  <span>タグ <strong>{preview.snapshot.tags.length}件</strong></span>
+                </div>
+                <section className="history-restore-panel">
+                  <h4>この状態へ復元</h4>
+                  <p>予定や家計などカレンダー全体を置き換え、新しいVersionとして保存します。復元前の状態も履歴から選択して戻せます（保存上限は50世代）。</p>
+                  {!canRestore && <p className="history-error" role="status">未保存の変更・オフライン・同期エラーがあるため、復元を停止しています。</p>}
+                  {showRestoreConfirm && (
+                    <div className="history-confirm">
+                      <strong>Version {preview.version}に復元しますか？</strong>
+                      <p>最新データ全体を置き換えます。選択したVersionが正しいか確認してください。</p>
+                      <button type="button" className="history-cancel" onClick={() => setShowRestoreConfirm(false)}>キャンセル</button>
+                    </div>
+                  )}
+                  <button type="button" className="history-restore-button"
+                    disabled={!canRestore || busy}
+                    onClick={() => { void restore(); }}>
+                    {showRestoreConfirm ? '確認して復元を実行' : 'このVersionへ復元'}
+                  </button>
+                </section>
               </div>
             )}
           </div>
