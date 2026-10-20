@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createCalendarBackup, parseCalendarBackup } from '../server/core/calendarBackup.ts';
+import { selectExpiredBackupKeys } from '../server/core/backupRetention.ts';
 import { getJapaneseHoliday } from '../src/utils/japaneseHolidays.ts';
 import { normalizeTime, validateEventForm } from '../src/utils/eventFormValidation.ts';
 import { mergeCalendarSnapshots } from '../src/utils/calendarSync.ts';
@@ -261,4 +262,42 @@ test('sync badge reports unsaved changes before the debounced network save start
   assert.equal(getDisplayedSyncStatus('failed', true), 'failed');
   assert.equal(getDisplayedSyncStatus('reload-required', true), 'reload-required');
   assert.equal(getDisplayedSyncStatus('offline', true), 'offline');
+});
+
+test('R2 backup retention bounds daily backups without removing last two recovery points', () => {
+  const now = new Date('2026-10-21T00:00:00Z');
+  const backup = (key: string, daysAgo: number) => ({
+    key, uploaded: new Date(now.getTime() - daysAgo * 86_400_000),
+  });
+  const items = [
+    backup('d1-calendar-snapshots/01.json', 1),
+    backup('d1-calendar-snapshots/02.json', 13),
+    backup('d1-calendar-snapshots/03.json', 15),
+    backup('d1-calendar-snapshots/04.json', 22),
+    backup('r2-images/manifests/01.json', 1),
+    backup('r2-images/manifests/02.json', 6),
+    backup('r2-images/manifests/03.json', 8),
+    backup('r2-images/manifests/04.json', 20),
+  ];
+  assert.deepEqual(selectExpiredBackupKeys(items, now), [
+    'd1-calendar-snapshots/03.json', 'd1-calendar-snapshots/04.json',
+    'r2-images/manifests/03.json', 'r2-images/manifests/04.json',
+  ]);
+});
+
+test('R2 backup retention keeps two image revisions per source and never deletes current primary images', () => {
+  const now = new Date('2026-10-21T00:00:00Z');
+  const entry = (key: string, daysAgo: number) => ({ key, uploaded: new Date(now.getTime() - daysAgo * 86_400_000) });
+  const prefix = 'r2-images/objects/daily-images/optimized/default/photo.webp/__versions/';
+  const other = 'r2-images/objects/daily-images/optimized/default/other.webp/__versions/';
+  const objects = [
+    entry(prefix + 'latest', 1),
+    entry(prefix + 'second', 25),
+    entry(prefix + 'expired', 45),
+    entry(prefix + 'recent-third', 20),
+    entry(other + 'only', 500),
+    entry('unrelated/image.webp', 700),
+  ];
+  assert.deepEqual(selectExpiredBackupKeys(objects, now), [prefix + 'expired']);
+  assert.deepEqual(selectExpiredBackupKeys([entry(other + 'only', 500)], now), []);
 });
