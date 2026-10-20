@@ -54,10 +54,6 @@ type ImageUploadResponse = {
   contentType: string;
 };
 
-type CloudflareCacheStorage = CacheStorage & {
-  default: Cache;
-};
-
 const maxSnapshotBytes = 1_000_000;
 const maxImageBytes = 2 * 1024 * 1024;
 const maxHistoryEntries = 50;
@@ -95,6 +91,10 @@ export default {
 
     if (url.pathname === '/api/admin/image-gc' && request.method === 'POST') {
       return handleImageGc(request, env);
+    }
+
+    if (url.pathname === '/api/image-session' && request.method === 'POST') {
+      return handleImageSession(request, env);
     }
 
     if (url.pathname === '/api/images' && request.method === 'POST') {
@@ -381,39 +381,77 @@ async function handleImageUpload(request: Request, env: Env): Promise<Response> 
   });
 }
 
+// Image-only session cookies have no write privileges and never enter image URLs.
+const imageSessionLifetimeSeconds = 60 * 60;
+const imageSessionCookie = 'yomi_image_read';
+
+async function imageSessionSignature(payload: string, secret: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const bytes = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload)));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function handleImageSession(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'POST') return jsonError('method_not_allowed', 'Unsupported method.', 405);
+  const unauthorized = requireWriteToken(request, env);
+  if (unauthorized) return unauthorized;
+  const body = await request.json<{ calendarId?: string }>().catch(() => undefined);
+  const calendarId = body?.calendarId?.trim();
+  if (!calendarId || calendarId.includes('/') || calendarId.length > 128) {
+    return jsonError('bad_request', 'Invalid calendarId.', 400);
+  }
+  const expiry = Math.floor(Date.now() / 1000) + imageSessionLifetimeSeconds;
+  const payload = `${encodeURIComponent(calendarId)}.${expiry}`;
+  const signature = await imageSessionSignature(payload, env.WRITE_TOKEN);
+  const response = json({ ok: true, expiresAt: expiry });
+  response.headers.set('Set-Cookie',
+    `${imageSessionCookie}=${payload}.${signature}; Path=/api/images/; HttpOnly; Secure; SameSite=Strict; Max-Age=${imageSessionLifetimeSeconds}`);
+  response.headers.set('Cache-Control', 'no-store');
+  return response;
+}
+
+async function authorizeImageRead(request: Request, env: Env, key: string): Promise<boolean> {
+  if (!env.WRITE_TOKEN) return false;
+  const cookieValue = (request.headers.get('cookie') ?? '').split(';')
+    .map((part) => part.trim()).find((part) => part.startsWith(`${imageSessionCookie}=`))
+    ?.slice(imageSessionCookie.length + 1);
+  if (!cookieValue) return false;
+  const parts = cookieValue.split('.');
+  if (parts.length !== 3 || !/^\d+$/.test(parts[1]) || !/^[0-9a-f]{64}$/.test(parts[2])) return false;
+  const expiry = Number(parts[1]);
+  const now = Math.floor(Date.now() / 1000);
+  if (!Number.isSafeInteger(expiry) || expiry <= now || expiry > now + imageSessionLifetimeSeconds) return false;
+  let calendarId: string;
+  try { calendarId = decodeURIComponent(parts[0]); }
+  catch { return false; }
+  if (!key.startsWith(`daily-images/optimized/${calendarId}/`)) return false;
+  const expected = await imageSessionSignature(`${parts[0]}.${parts[1]}`, env.WRITE_TOKEN);
+  // Compare the full digest without short-circuiting on the first mismatching character.
+  let diff = 0;
+  for (let i = 0; i < expected.length; i += 1) diff |= expected.charCodeAt(i) ^ parts[2].charCodeAt(i);
+  return diff === 0;
+}
+
 async function handleImageRead(request: Request, env: Env, url: URL): Promise<Response> {
-  if (request.method !== 'GET') {
-    return jsonError('method_not_allowed', 'Unsupported image method.', 405);
+  if (request.method !== 'GET') return jsonError('method_not_allowed', 'Unsupported image method.', 405);
+  let key: string;
+  try { key = decodeURIComponent(url.pathname.replace('/api/images/', '')); }
+  catch { return jsonError('bad_request', 'Invalid image key.', 400); }
+  if (!await authorizeImageRead(request, env, key)) {
+    const response = jsonError('unauthorized', 'Image read session is missing or expired.', 401);
+    response.headers.set('Cache-Control', 'no-store');
+    return response;
   }
-
-  const cache = (caches as CloudflareCacheStorage).default;
-  const unauthorizedResponse = requireWriteToken(request, env);
-
-  if (unauthorizedResponse) return unauthorizedResponse;
-
-  const cachedResponse = await cache.match(request);
-
-  if (cachedResponse) {
-    return cachedResponse;
-  }
-
-  const key = decodeURIComponent(url.pathname.replace('/api/images/', ''));
   const object = await env.IMAGES.get(key);
-
-  if (!object) {
-    return jsonError('not_found', 'Image not found.', 404);
-  }
-
+  if (!object) return jsonError('not_found', 'Image not found.', 404);
   const headers = new Headers();
   object.writeHttpMetadata(headers);
   headers.set('etag', object.httpEtag);
-  headers.set('cache-control', 'public, max-age=31536000, immutable');
-
-  const response = new Response(object.body, { headers });
-
-  await cache.put(request, response.clone());
-
-  return response;
+  headers.set('cache-control', 'private, no-store');
+  headers.set('x-content-type-options', 'nosniff');
+  return new Response(object.body, { headers });
 }
 
 async function handleImageBackupList(request: Request, env: Env, url: URL): Promise<Response> {
@@ -550,9 +588,8 @@ function requireWriteToken(request: Request, env: Env): Response | undefined {
   const authorization = request.headers.get('authorization') ?? '';
   const bearerToken = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length).trim() : '';
   const headerToken = request.headers.get('x-write-token')?.trim() ?? '';
-  const queryToken = new URL(request.url).searchParams.get('token')?.trim() ?? '';
 
-  if (bearerToken === env.WRITE_TOKEN || headerToken === env.WRITE_TOKEN || queryToken === env.WRITE_TOKEN) {
+  if (bearerToken === env.WRITE_TOKEN || headerToken === env.WRITE_TOKEN) {
     return undefined;
   }
 
