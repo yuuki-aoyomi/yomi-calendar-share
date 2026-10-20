@@ -453,7 +453,7 @@ function App() {
         <div className="hero-side">
           <div className="hero-actions">
             {remoteApiEnabled && <button type="button" className="settings-icon-button history-open-button"
-              aria-label="変更履歴を開く" onClick={() => setIsHistoryOpen(true)}>履歴</button>}
+              aria-label="変更履歴と復元を開く" onClick={() => setIsHistoryOpen(true)}>履歴・復元</button>}
             <button
               type="button"
               className="settings-icon-button"
@@ -512,6 +512,15 @@ function App() {
                 </button>
               )}
             </section>
+          )}
+          {remoteApiEnabled && (
+            <div className="history-access-bar">
+              <button type="button" className="history-access-button"
+                onClick={() => setIsHistoryOpen(true)}>
+                <span aria-hidden="true">↶</span> 変更履歴・復元を開く
+              </button>
+              <span>過去のVersionを確認し、カレンダーを復元できます</span>
+            </div>
           )}
           {pendingHighlightedTodos.length > 0 && (
             <section className="todo-alert-panel" role="status">
