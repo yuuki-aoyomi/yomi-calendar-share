@@ -57,6 +57,10 @@ React + TypeScript + Vite で作る、予定・ToDo・お金・日別写真・�
   - 設定でON/OFF
 - JSONバックアップの書き出し / 読み込み
 
+## Calendar version history
+
+Snapshot履歴はD1 migration `0003_add_snapshot_history.sql` で作成します。新Workerのデプロイ前に `npm run db:migrate:remote` を実行してください。直近50世代を保持し、`GET /api/calendar-history/:calendarId` で一覧、`?version=N` でプレビュー、`POST /api/calendar-history/:calendarId` で `{version, expectedVersion}` を指定して新しいversionへ復元できます。復元と履歴メタデータはSQLite triggerで同一DB更新内に記録され、競合時はHTTP 409を返します。APIは既存Bearerトークン認証が必要です。
+
 ## Architecture
 
 現在の構成:
