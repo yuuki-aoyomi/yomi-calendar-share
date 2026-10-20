@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   adoptCalendarSnapshot,
+  establishImageReadSession,
   checkCalendarSnapshotUpdate,
   fetchCalendarSnapshot,
   loadCalendarSnapshot,
@@ -191,6 +192,26 @@ function App() {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  // Renew the scoped image session while the application remains open.
+  useEffect(() => {
+    if (!remoteApiEnabled || !isRemoteLoaded || !writeToken.trim()) return;
+    const renew = () => {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        void establishImageReadSession(calendarId, writeToken).catch(() => {
+          console.warn('Image session renewal failed; images may need a page reload.');
+        });
+      }
+    };
+    const interval = window.setInterval(renew, 45 * 60 * 1000);
+    document.addEventListener('visibilitychange', renew);
+    window.addEventListener('online', renew);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', renew);
+      window.removeEventListener('online', renew);
+    };
+  }, [isRemoteLoaded, writeToken]);
 
   useEffect(() => {
     if (!remoteApiEnabled) return;
