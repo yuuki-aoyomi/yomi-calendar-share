@@ -37,9 +37,9 @@ AFTER UPDATE OF snapshot_json, version ON calendar_snapshots
 WHEN NEW.version <> OLD.version
 BEGIN
   INSERT OR REPLACE INTO calendar_snapshot_history
-    (calendar_id, version, snapshot_json, operation, created_at)
+    (calendar_id, version, snapshot_json, operation, restored_from_version, created_at)
   VALUES
-    (NEW.calendar_id, NEW.version, NEW.snapshot_json, 'save', CURRENT_TIMESTAMP);
+    (NEW.calendar_id, NEW.version, NEW.snapshot_json, CASE WHEN NEW.restored_from_version IS NULL THEN 'save' ELSE 'restore' END, NEW.restored_from_version, CURRENT_TIMESTAMP);
 
   DELETE FROM calendar_snapshot_history
   WHERE calendar_id = NEW.calendar_id
