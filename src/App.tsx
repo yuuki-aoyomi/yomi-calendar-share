@@ -431,7 +431,7 @@ function App() {
         </div>
         <div className="hero-side">
           <div className="hero-actions">
-            {remoteApiEnabled && <button type="button" className="settings-icon-button"
+            {remoteApiEnabled && <button type="button" className="settings-icon-button history-open-button"
               aria-label="変更履歴を開く" onClick={() => setIsHistoryOpen(true)}>履歴</button>}
             <button
               type="button"
