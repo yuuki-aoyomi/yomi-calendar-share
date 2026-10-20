@@ -34,6 +34,15 @@ type CalendarVersionRow = {
   version: number;
 };
 
+type CalendarHistoryRow = {
+  snapshot_json: string;
+  version: number;
+  operation: string;
+  restored_from_version: number | null;
+  created_at: string;
+};
+type CalendarHistoryMetadataRow = Omit<CalendarHistoryRow, 'snapshot_json'>;
+
 type SnapshotJsonRow = {
   snapshot_json: string;
 };
@@ -51,6 +60,7 @@ type CloudflareCacheStorage = CacheStorage & {
 
 const maxSnapshotBytes = 1_000_000;
 const maxImageBytes = 2 * 1024 * 1024;
+const maxHistoryEntries = 50;
 const maxGcKeysPerRequest = 100;
 const imageSourcePrefix = 'daily-images/optimized/';
 
@@ -62,6 +72,10 @@ export default {
   },
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname.startsWith('/api/calendar-history/')) {
+      return handleCalendarHistoryRequest(request, env, url);
+    }
 
     if (url.pathname.startsWith('/api/calendar/')) {
       return handleCalendarRequest(request, env, url);
@@ -177,7 +191,7 @@ async function handleCalendarRequest(request: Request, env: Env, url: URL): Prom
       const result = await env.DB.prepare(
         `
           UPDATE calendar_snapshots
-          SET snapshot_json = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP
+          SET snapshot_json = ?, version = version + 1, restored_from_version = NULL, updated_at = CURRENT_TIMESTAMP
           WHERE calendar_id = ? AND version = ?
         `,
       )
@@ -208,6 +222,127 @@ async function handleCalendarRequest(request: Request, env: Env, url: URL): Prom
   }
 
   return jsonError('method_not_allowed', 'Unsupported calendar method.', 405);
+}
+
+async function handleCalendarHistoryRequest(request: Request, env: Env, url: URL): Promise<Response> {
+  const unauthorizedResponse = requireWriteToken(request, env);
+  if (unauthorizedResponse) return unauthorizedResponse;
+
+  const calendarId = decodeURIComponent(url.pathname.replace('/api/calendar-history/', '')).trim();
+  if (!calendarId) {
+    return jsonError('bad_request', 'calendarId is required.', 400);
+  }
+
+  if (request.method === 'GET') {
+    const versionParam = url.searchParams.get('version');
+
+    if (versionParam !== null) {
+      const version = Number(versionParam);
+      if (!Number.isInteger(version) || version < 1) {
+        return jsonError('bad_request', 'version must be a positive integer.', 400);
+      }
+
+      const row = await env.DB.prepare(
+        `
+          SELECT snapshot_json, version, operation, restored_from_version, created_at
+          FROM calendar_snapshot_history
+          WHERE calendar_id = ? AND version = ?
+        `,
+      )
+        .bind(calendarId, version)
+        .first<CalendarHistoryRow>();
+
+      if (!row) return jsonError('not_found', 'Calendar history version not found.', 404);
+
+      return json({
+        calendarId,
+        version: row.version,
+        operation: row.operation,
+        restoredFromVersion: row.restored_from_version,
+        createdAt: row.created_at,
+        snapshot: parseCalendarSnapshot(row.snapshot_json),
+      });
+    }
+
+    const result = await env.DB.prepare(
+      `
+        SELECT version, operation, restored_from_version, created_at
+        FROM calendar_snapshot_history
+        WHERE calendar_id = ?
+        ORDER BY version DESC
+        LIMIT ?
+      `,
+    )
+      .bind(calendarId, maxHistoryEntries)
+      .all<CalendarHistoryMetadataRow>();
+
+    return json({
+      calendarId,
+      entries: (result.results ?? []).map((row) => ({
+        version: row.version,
+        operation: row.operation,
+        restoredFromVersion: row.restored_from_version,
+        createdAt: row.created_at,
+      })),
+    });
+  }
+
+  if (request.method === 'POST') {
+    const body = await request.json<{ version?: number; expectedVersion?: number }>().catch(() => undefined);
+    if (!Number.isInteger(body?.version) || (body?.version ?? 0) < 1) {
+      return jsonError('bad_request', 'version must be a positive integer.', 400);
+    }
+    if (!Number.isInteger(body?.expectedVersion) || (body?.expectedVersion ?? -1) < 1) {
+      return jsonError('bad_request', 'expectedVersion must be a positive integer.', 400);
+    }
+
+    const restoreVersion = body?.version as number;
+    const expectedVersion = body?.expectedVersion as number;
+    const source = await env.DB.prepare(
+      `
+        SELECT snapshot_json, version, operation, restored_from_version, created_at
+        FROM calendar_snapshot_history
+        WHERE calendar_id = ? AND version = ?
+      `,
+    )
+      .bind(calendarId, restoreVersion)
+      .first<CalendarHistoryRow>();
+
+    if (!source) return jsonError('not_found', 'Calendar history version not found.', 404);
+
+    const result = await env.DB.prepare(
+      `
+        UPDATE calendar_snapshots
+        SET snapshot_json = ?, version = version + 1, restored_from_version = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE calendar_id = ? AND version = ?
+      `,
+    )
+      .bind(source.snapshot_json, restoreVersion, calendarId, expectedVersion)
+      .run();
+
+    if ((result.meta.changes ?? 0) === 0) {
+      const current = await env.DB.prepare(
+        'SELECT version FROM calendar_snapshots WHERE calendar_id = ?',
+      )
+        .bind(calendarId)
+        .first<CalendarVersionRow>();
+
+      return json({
+        ok: false as const,
+        error: {
+          code: 'version_conflict',
+          message: 'Calendar data was updated before the restore completed.',
+        },
+        calendarId,
+        version: current?.version ?? 0,
+      }, 409);
+    }
+
+    const newVersion = expectedVersion + 1;
+    return json({ ok: true as const, calendarId, version: newVersion, restoredFromVersion: restoreVersion });
+  }
+
+  return jsonError('method_not_allowed', 'Unsupported calendar history method.', 405);
 }
 
 async function handleImageUpload(request: Request, env: Env): Promise<Response> {
