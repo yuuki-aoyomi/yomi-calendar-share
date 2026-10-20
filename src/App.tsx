@@ -33,6 +33,7 @@ import type {
 } from './types/calendar';
 import { getMonthKey, toDateKey } from './utils/date';
 import { persistRemoteSnapshot } from './utils/remoteSave';
+import { getDisplayedSyncStatus } from './utils/syncDisplay';
 import { getHighlightedPendingTodos } from './utils/todo';
 
 const todayKey = toDateKey(new Date());
@@ -52,7 +53,8 @@ const getTimePeriod = (): 'morning' | 'day' | 'evening' | 'night' => {
   return 'night';
 };
 
-const syncStatusText: Record<SyncStatus, string> = {
+const syncStatusText: Record<SyncStatus | 'pending', string> = {
+  pending: '保存待ち',
   saved: '保存済み',
   saving: '保存中',
   offline: 'オフライン',
@@ -146,6 +148,8 @@ function App() {
     dailyPhotos,
   }), [events, moneyRecords, loveLogs, tags, partTimeJobs, creditCards, subscriptions, dailyPhotos]);
   const latestRemoteSnapshot = useRef(currentRemoteSnapshot);
+  const hasPendingLocalChanges = isRemoteLoaded && JSON.stringify(currentRemoteSnapshot) !== lastSavedRemoteSnapshot.current;
+  const displayedSyncStatus = getDisplayedSyncStatus(syncStatus, hasPendingLocalChanges);
   const pendingHighlightedTodos = useMemo(
     () => getHighlightedPendingTodos(events, toDateKey(new Date())),
     [events, timePeriod],
@@ -452,7 +456,7 @@ function App() {
         </div>
         <div className="hero-side">
           <div className="hero-actions">
-            {remoteApiEnabled && <button type="button" className="settings-icon-button history-open-button"
+            {<button type="button" className="settings-icon-button history-open-button"
               aria-label="変更履歴と復元を開く" onClick={() => setIsHistoryOpen(true)}>履歴・復元</button>}
             <button
               type="button"
@@ -493,9 +497,10 @@ function App() {
           </div>
           {remoteApiEnabled && (
             <section className="todo-alert-panel" role="status">
-              <strong>同期: {syncStatusText[syncStatus]}</strong>
+              <strong>同期: {syncStatusText[displayedSyncStatus]}</strong>
               <span>
-                {syncStatus === 'saved' && 'リモートに保存されています。'}
+                {displayedSyncStatus === 'saved' && 'リモートに保存されています。'}
+                {displayedSyncStatus === 'pending' && '変更があります。自動保存を待っています。'}
                 {syncStatus === 'saving' && '変更を保存しています。'}
                 {syncStatus === 'offline' && 'ネットワーク復帰後に未保存変更を再試行します。'}
                 {syncStatus === 'failed' && remoteSaveError}
@@ -513,7 +518,7 @@ function App() {
               )}
             </section>
           )}
-          {remoteApiEnabled && (
+          {(
             <div className="history-access-bar">
               <button type="button" className="history-access-button"
                 onClick={() => setIsHistoryOpen(true)}>
@@ -629,8 +634,8 @@ function App() {
           )}
           {isHistoryOpen && (
             <CalendarHistoryModal calendarId={calendarId} writeToken={writeToken}
-              canRestore={isOnline && isRemoteLoaded && syncStatus === 'saved'
-                && JSON.stringify(currentRemoteSnapshot) === lastSavedRemoteSnapshot.current}
+              canRestore={remoteApiEnabled && isOnline && isRemoteLoaded && syncStatus === 'saved'
+                && !hasPendingLocalChanges}
               onClose={() => setIsHistoryOpen(false)}
               onRestored={() => window.location.reload()} />
           )}
