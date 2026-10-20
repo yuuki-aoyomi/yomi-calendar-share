@@ -2,6 +2,7 @@ import type { CalendarDataSnapshot } from '../../src/repositories/calendarReposi
 import { defaultCalendarSnapshot, parseCalendarSnapshot } from '../core/calendarSnapshot';
 import { json, jsonError } from '../core/http';
 import { createCalendarBackup, type BackupRow } from '../core/calendarBackup';
+import { selectExpiredBackupKeys } from '../core/backupRetention';
 import {
   createImageBackupManifest,
   getImageBackupKey,
@@ -63,8 +64,12 @@ const imageSourcePrefix = 'daily-images/optimized/';
 // Cloudflare専用のentrypointです。アプリ本体のHTTP契約はserver/core側へ逃がします。
 export default {
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(backupCalendarSnapshots(env));
-    ctx.waitUntil(backupDailyImages(env));
+    // Run retention only after both fresh backups succeed. Never purge the
+    // existing recovery points when backup creation has failed.
+    ctx.waitUntil(Promise.all([
+      backupCalendarSnapshots(env),
+      backupDailyImages(env),
+    ]).then(() => pruneExpiredBackups(env)));
   },
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -704,6 +709,24 @@ async function backupDailyImages(env: Env): Promise<void> {
   });
 
   console.log(`R2 image backup saved: ${manifestKey} (${copiedCount} copied / ${entries.length} current)`);
+}
+
+// Nightly R2 cleanup. This touches BACKUPS only; primary images in IMAGES
+// and the live D1 calendar/history are never deleted here.
+async function pruneExpiredBackups(env: Env): Promise<void> {
+  const [d1, manifests, imageVersions] = await Promise.all([
+    listAllBackupObjects(env.BACKUPS, 'd1-calendar-snapshots/'),
+    listAllBackupObjects(env.BACKUPS, 'r2-images/manifests/'),
+    listAllBackupObjects(env.BACKUPS, 'r2-images/objects/'),
+  ]);
+  const keys = selectExpiredBackupKeys([...d1, ...manifests, ...imageVersions], new Date());
+  // Bound per-run delete work, allowing further expired objects to be pruned
+  // on the next scheduled run without exceeding Worker execution budgets.
+  const batchLimit = 500;
+  for (let index = 0; index < Math.min(keys.length, batchLimit); index += 100) {
+    await env.BACKUPS.delete(keys.slice(index, Math.min(index + 100, batchLimit)));
+  }
+  console.log(`Backup retention: removed ${Math.min(keys.length, batchLimit)} of ${keys.length} eligible objects`);
 }
 
 async function listAllBackupObjects(bucket: R2Bucket, prefix: string): Promise<R2Object[]> {
