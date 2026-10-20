@@ -15,6 +15,7 @@ import { ScheduleMode } from './components/ScheduleMode';
 import { MoneyMode } from './components/MoneyMode';
 import { LoveMode } from './components/LoveMode';
 import { SettingsMode } from './components/SettingsMode';
+import { CalendarHistoryModal } from './components/CalendarHistoryModal';
 import { HelpModal } from './components/HelpModal';
 import { CalendarInsights } from './components/CalendarInsights';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
@@ -62,6 +63,7 @@ function App() {
   const [highlightedTagIds, setHighlightedTagIds] = useState<string[]>([]);
   const [activeMode, setActiveMode] = useState<CalendarMode>('schedule');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [calendarEditRequest, setCalendarEditRequest] = useState<{ eventId: string; requestedAt: number } | null>(null);
   const [selectedDate, setSelectedDate] = useState(todayKey);
@@ -429,6 +431,8 @@ function App() {
         </div>
         <div className="hero-side">
           <div className="hero-actions">
+            {remoteApiEnabled && <button type="button" className="settings-icon-button"
+              aria-label="変更履歴を開く" onClick={() => setIsHistoryOpen(true)}>履歴</button>}
             <button
               type="button"
               className="settings-icon-button"
@@ -592,6 +596,13 @@ function App() {
               logs={loveLogs}
               onLogsChange={setLoveLogs}
             />
+          )}
+          {isHistoryOpen && (
+            <CalendarHistoryModal calendarId={calendarId} writeToken={writeToken}
+              canRestore={isOnline && isRemoteLoaded && syncStatus === 'saved'
+                && JSON.stringify(currentRemoteSnapshot) === lastSavedRemoteSnapshot.current}
+              onClose={() => setIsHistoryOpen(false)}
+              onRestored={() => window.location.reload()} />
           )}
           {isSettingsOpen && (
             <div className="modal-backdrop" role="presentation" onClick={() => setIsSettingsOpen(false)}>
