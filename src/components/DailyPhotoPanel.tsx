@@ -73,7 +73,7 @@ export function DailyPhotoPanel({ calendarId, writeToken, selectedDate, photos, 
 
     const now = new Date().toISOString();
     const photoId = createId();
-    let savedImageUrl = imageUrl;
+    let savedImageUrl = withReadToken(imageUrl, writeToken);
     let imageKey: string | undefined;
     setError('');
 
@@ -93,7 +93,7 @@ export function DailyPhotoPanel({ calendarId, writeToken, selectedDate, photos, 
           writeToken,
         });
 
-        savedImageUrl = uploadedImage.publicUrl;
+        savedImageUrl = withReadToken(uploadedImage.publicUrl, writeToken);
         imageKey = uploadedImage.key;
       } catch (uploadError) {
         setError(uploadError instanceof Error ? uploadError.message : '画像アップロードに失敗しました。');
@@ -139,7 +139,7 @@ export function DailyPhotoPanel({ calendarId, writeToken, selectedDate, photos, 
         {error && <p className="error-text">{error}</p>}
         {imageMeta && (
           <figure className="image-preview-card">
-            {imageUrl && <img src={imageUrl} alt="追加予定の日別写真" />}
+            {imageUrl && <img src={withReadToken(imageUrl, writeToken)} alt="追加予定の日別写真" />}
             <figcaption>
               {imageMeta.fileName} / {imageMeta.width}x{imageMeta.height} / 圧縮前 {formatBytes(imageMeta.originalSize)} → 圧縮後{' '}
               {formatBytes(imageMeta.compressedSize)}

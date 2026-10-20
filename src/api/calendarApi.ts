@@ -291,24 +291,36 @@ export const uploadDailyPhoto = async ({
   return (await response.json()) as ImageUploadPayload;
 };
 
+// Remove legacy credentials from *all* photo source URLs, including URLs
+// produced by older diary versions and custom image hosts. Never put a write
+// credential in a browser-visible <img src> attribute.
 export const withReadToken = (url: string, _writeToken: string) => {
-  // Legacy snapshots may contain absolute same-origin image URLs with a
-  // long-lived WRITE_TOKEN in the query. Strip it before putting it in the DOM.
-  // Do not change arbitrary external images (e.g. user-supplied photo links).
+  if (/^(data:|blob:)/i.test(url)) return url;
   try {
-    const parsed = new URL(url, typeof window === 'undefined' ? 'https://calendar.invalid' : window.location.origin);
-    if (!parsed.pathname.startsWith('/api/images/')) return url;
-    const relative = url.startsWith('/') && !url.startsWith('//');
-    const sameOrigin = typeof window === 'undefined'
-      ? parsed.origin === 'https://calendar.invalid'
-      : parsed.origin === window.location.origin;
-    // Image URLs never require a query: strip all legacy credentials, including
-    // on absolute URLs, while keeping the original host when cross-origin.
-    return relative || sameOrigin
-      ? parsed.pathname
-      : parsed.origin + parsed.pathname;
+    const base = typeof window === 'undefined' ? 'https://calendar.invalid' : window.location.origin;
+    const parsed = new URL(url, base);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return url;
+
+    // Managed R2 image routes do not use ANY query parameters; remove
+    // credentials that may have been persisted in old calendar snapshots.
+    if (parsed.pathname.startsWith('/api/images/')) parsed.search = '';
+    else {
+      // For other image hosts preserve functional resize parameters while
+      // still stripping an exposed WRITE_TOKEN (regardless of case).
+      for (const key of Array.from(parsed.searchParams.keys())) {
+        if (key.toLowerCase() === 'token') parsed.searchParams.delete(key);
+      }
+    }
+
+    // Keep relative URLs relative. Absolute and protocol-relative URLs remain
+    // absolute so the image origin is not accidentally changed.
+    if (url.startsWith('/') && !url.startsWith('//')) {
+      return parsed.pathname + parsed.search + parsed.hash;
+    }
+    return parsed.href;
   } catch {
-    return url;
+    // Do not pass malformed URLs carrying secrets to the DOM.
+    return url.includes('?') ? url.slice(0, url.indexOf('?')) : url;
   }
 };
 

@@ -221,8 +221,8 @@ test('absolute same-origin legacy image URL is sanitized without exposing its wr
 
 test('external non-image URLs are not modified by the image URL sanitizer', () => {
   const external = 'https://photos.example.test/external.jpg?size=large&token=external-service-value';
-  assert.equal(withReadToken(external, writeToken), external);
-  assert.equal(withReadToken('/not-an-image?token=test', writeToken), '/not-an-image?token=test');
+  assert.equal(withReadToken(external, writeToken), 'https://photos.example.test/external.jpg?size=large');
+  assert.equal(withReadToken('/not-an-image?token=test', writeToken), '/not-an-image');
 });
 
 test('image endpoint URLs with percent encoding or legacy query are sanitized', () => {
@@ -230,4 +230,21 @@ test('image endpoint URLs with percent encoding or legacy query are sanitized', 
     '/api/images/dir/%E3%81%82.webp');
   assert.equal(withReadToken('//cdn.example.test/api/images/legacy.webp?token=old', writeToken),
     'https://cdn.example.test/api/images/legacy.webp');
+});
+
+test('diary photo src removes WRITE_TOKEN from legacy external and custom image URLs', () => {
+  for (const url of [
+    'https://images.example.org/photos/c3.webp?token=all-the-write-token',
+    '/diary/c3.webp?token=all-the-write-token',
+    'https://images.example.org/photos/c3.webp?width=320&TOKEN=all-the-write-token',
+    'https://images.example.org/api/images/c3.webp?token=all-the-write-token',
+    '//images.example.org/photos/c3.webp?token=all-the-write-token',
+  ]) {
+    const sanitized = withReadToken(url, writeToken);
+    assert.ok(!sanitized.toLowerCase().includes('token='), url);
+    assert.ok(!sanitized.includes('all-the-write-token'), url);
+  }
+  assert.equal(withReadToken('https://images.example.org/photos/c3.webp?width=320&token=secret', writeToken),
+    'https://images.example.org/photos/c3.webp?width=320');
+  assert.equal(withReadToken('data:image/png;base64,abc', writeToken), 'data:image/png;base64,abc');
 });
