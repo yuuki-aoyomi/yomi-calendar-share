@@ -340,3 +340,8 @@ export const restoreCalendarVersion = async (
   if (!response.ok) throw new Error(await getResponseErrorMessage(response,
     response.status === 409 ? '別端末で変更されています。再読み込みしてから確認してください。' : '復元に失敗しました。'));
 };
+
+// The version actually loaded by this tab, not a newly fetched version.
+// Restore must fail with HTTP 409 when another device has changed the calendar.
+export const getLoadedCalendarVersion = (calendarId: string): number | undefined =>
+  remoteCalendarState?.calendarId === calendarId ? remoteCalendarState.version : undefined;
