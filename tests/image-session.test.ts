@@ -210,3 +210,24 @@ test('image GET never accepts authenticated writes or query credentials', async 
   assert.equal(readAttempt.status, 405);
   assert.equal((await worker.fetch(imageRequest(keyA, cookie), env)).status, 200);
 });
+
+test('absolute same-origin legacy image URL is sanitized without exposing its write token', () => {
+  const old = 'https://example.test/api/images/daily-images/optimized/default/2026-10-20/photo.webp?token=secret';
+  assert.equal(withReadToken(old, writeToken),
+    'https://example.test/api/images/daily-images/optimized/default/2026-10-20/photo.webp');
+  assert.equal(withReadToken(old.replace('secret', 'secret&foo=bar'), writeToken),
+    'https://example.test/api/images/daily-images/optimized/default/2026-10-20/photo.webp');
+});
+
+test('external non-image URLs are not modified by the image URL sanitizer', () => {
+  const external = 'https://photos.example.test/external.jpg?size=large&token=external-service-value';
+  assert.equal(withReadToken(external, writeToken), external);
+  assert.equal(withReadToken('/not-an-image?token=test', writeToken), '/not-an-image?token=test');
+});
+
+test('image endpoint URLs with percent encoding or legacy query are sanitized', () => {
+  assert.equal(withReadToken('/api/images/dir/%E3%81%82.webp?token=legacy&x=y', writeToken),
+    '/api/images/dir/%E3%81%82.webp');
+  assert.equal(withReadToken('//cdn.example.test/api/images/legacy.webp?token=old', writeToken),
+    'https://cdn.example.test/api/images/legacy.webp');
+});
