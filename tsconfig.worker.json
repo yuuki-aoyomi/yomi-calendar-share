@@ -11,5 +11,5 @@
     "isolatedModules": true,
     "noEmit": true
   },
-  "include": ["server/**/*.ts", "src/repositories/**/*.ts"]
+  "include": ["server/**/*.ts", "src/repositories/**/*.ts", "tools/docomo-imap-probe/**/*.ts"]
 }
