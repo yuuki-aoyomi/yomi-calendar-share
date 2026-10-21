@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { fetchCalendarSnapshot, withReadToken } from '../src/api/calendarApi';
+import {
+  adoptCalendarSnapshot, fetchCalendarSnapshot, getLoadedCalendarVersion,
+  loadCalendarSnapshotWithVersion, withReadToken,
+} from '../src/api/calendarApi';
 import { defaultCalendarSnapshot } from '../server/core/calendarSnapshot';
 
 const calendarId = 'default';
@@ -64,4 +67,21 @@ test('image URL helper removes legacy token parameters without adding new creden
   assert.equal(withReadToken(url, writeToken), url);
   assert.equal(withReadToken(url + '?token=old-secret', writeToken), url);
   assert.equal(withReadToken(url + '?token=old-secret&x=1', writeToken), url);
+});
+
+test('stored-data error rejects loading without replacing the known sync base or creating an image session', async () => {
+  const originalFetch = globalThis.fetch;
+  const requested: string[] = [];
+  adoptCalendarSnapshot(calendarId, defaultCalendarSnapshot, 7);
+  try {
+    globalThis.fetch = async (input: string | URL | Request) => {
+      requested.push(String(input));
+      return Response.json({ error: { code: 'invalid_stored_snapshot', message: '保存データを検証できません。' } }, { status: 500 });
+    };
+    await assert.rejects(() => loadCalendarSnapshotWithVersion(calendarId, writeToken), /保存データを検証できません.*invalid_stored_snapshot/);
+    assert.equal(getLoadedCalendarVersion(calendarId), 7);
+    assert.deepEqual(requested, ['/api/calendar/default']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
