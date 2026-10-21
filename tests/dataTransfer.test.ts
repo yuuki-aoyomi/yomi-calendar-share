@@ -87,7 +87,7 @@ test('import preview separates duplicate ids, conflicting ids and duplicate cont
   const payload = createPartialExport(current, { events: true });
   payload.data.events = [
     { ...current.events[0] },
-    { ...current.events[0], title: '変更済み' },
+    { ...current.events[1], title: '変更済み' },
     { ...current.events[0], id: 'event-copy', createdAt: 'other', updatedAt: 'other' },
     {
       ...current.events[0],
