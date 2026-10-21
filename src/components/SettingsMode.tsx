@@ -12,6 +12,7 @@ import { createBackupData, downloadBackupFile, readBackupFile } from '../utils/b
 import { createId } from '../utils/id';
 import { formatPayrollRule } from '../utils/salary';
 import { sortCalendarTags } from '../utils/tags';
+import { formatReferenceImpact, getTagReferenceImpact, hasBlockingReferences } from '../utils/referenceIntegrity';
 import type { VisualWeather } from '../App';
 
 type SettingsModeProps = {
@@ -295,6 +296,11 @@ export function SettingsMode({
 
   const handleDeleteTag = (tagId: string) => {
     const tag = backupData.tags.find((item) => item.id === tagId);
+    const impact = getTagReferenceImpact(backupData, tagId);
+    if (hasBlockingReferences(impact)) {
+      window.alert(`この設定は使用中のため削除できません。参照先: ${formatReferenceImpact(impact)}。過去の予定・家計記録を保護するため、設定を残しています。`);
+      return false;
+    }
 
     onTagsChange((current) => current.filter((item) => item.id !== tagId));
     onEventsChange((current) =>
@@ -311,6 +317,7 @@ export function SettingsMode({
     );
     onPartTimeJobsChange((current) => current.filter((job) => job.tagId !== tagId));
     onCreditCardsChange((current) => current.filter((card) => card.tagId !== tagId));
+    return true;
   };
 
   const handleDeletePartTimeJob = (jobId: string) => {
@@ -318,7 +325,7 @@ export function SettingsMode({
 
     if (!job) return;
 
-    handleDeleteTag(job.tagId);
+    if (!handleDeleteTag(job.tagId)) return;
     onPartTimeJobsChange((current) => current.filter((item) => item.id !== jobId));
   };
 
@@ -327,7 +334,7 @@ export function SettingsMode({
 
     if (!card) return;
 
-    handleDeleteTag(card.tagId);
+    if (!handleDeleteTag(card.tagId)) return;
     onCreditCardsChange((current) => current.filter((item) => item.id !== cardId));
   };
 

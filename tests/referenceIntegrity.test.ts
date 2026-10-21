@@ -7,6 +7,7 @@ import {
   getCreditCardReferenceImpact,
   getPartTimeJobReferenceImpact,
   getTagReferenceImpact,
+  hasBlockingReferences,
 } from '../src/utils/referenceIntegrity.ts';
 
 const makeData = (): AppBackupData['data'] => ({
@@ -91,8 +92,40 @@ test('reference impact counts historical records before configuration deletion',
   });
   assert.deepEqual(getTagReferenceImpact(data, 'tag-job'), {
     eventCount: 1,
-    moneyRecordCount: 0,
+    moneyRecordCount: 1,
     subscriptionCount: 0,
+  });
+});
+
+test('tag deletion guard protects indirect card and subscription references', () => {
+  const data = makeData();
+  assert.deepEqual(getTagReferenceImpact(data, 'tag-card'), {
+    eventCount: 0, moneyRecordCount: 1, subscriptionCount: 1,
+  });
+  assert.equal(hasBlockingReferences(getTagReferenceImpact(data, 'tag-card')), true);
+  data.moneyRecords = [];
+  assert.equal(hasBlockingReferences(getTagReferenceImpact(data, 'tag-card')), true);
+  data.subscriptions = [];
+  assert.equal(hasBlockingReferences(getTagReferenceImpact(data, 'tag-card')), false);
+});
+
+test('tag deletion guard protects historical work events without money records', () => {
+  const data = makeData();
+  data.moneyRecords = [];
+  assert.equal(hasBlockingReferences(getTagReferenceImpact(data, 'tag-job')), true);
+  data.events = [];
+  assert.equal(hasBlockingReferences(getTagReferenceImpact(data, 'tag-job')), false);
+});
+
+test('shared tag deletion checks all dependent settings without double counting', () => {
+  const data = makeData();
+  data.creditCards[0].tagId = 'tag-job';
+  data.moneyRecords[0].creditCardId = 'card-1';
+  assert.deepEqual(getTagReferenceImpact(data, 'tag-job'), {
+    eventCount: 1, moneyRecordCount: 2, subscriptionCount: 1,
+  });
+  assert.deepEqual(getTagReferenceImpact(data, 'missing'), {
+    eventCount: 0, moneyRecordCount: 0, subscriptionCount: 0,
   });
 });
 
