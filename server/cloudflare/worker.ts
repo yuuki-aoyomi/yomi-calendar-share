@@ -1,3 +1,4 @@
+import { handleCardTransactions } from './cardTransactionRoutes';
 import type { CalendarDataSnapshot } from '../../src/repositories/calendarRepository';
 import { defaultCalendarSnapshot, parseCalendarSnapshot } from '../core/calendarSnapshot';
 import { json, jsonError } from '../core/http';
@@ -73,6 +74,11 @@ export default {
   },
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === '/api/card-transactions' || url.pathname.startsWith('/api/card-transactions/')) {
+      const unauthorized = requireWriteToken(request, env);
+      if (unauthorized) return unauthorized;
+      return handleCardTransactions(request, env.DB, url);
+    }
 
     if (url.pathname.startsWith('/api/calendar-history/')) {
       return handleCalendarHistoryRequest(request, env, url);
