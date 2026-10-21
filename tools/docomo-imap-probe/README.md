@@ -1,4 +1,4 @@
-# ドコモメール IMAP疎通検証（PR #63）
+# ドコモメール IMAP疎通検証（統合PR #60）
 
 ## 目的・範囲
 
@@ -24,12 +24,12 @@ Cloudflare Workers（Cloudflare側で実行）から、ドコモメールのIMAP
 
 ```bash
 git fetch origin
-git switch test/docomo-imap-workers-connectivity
-git pull --ff-only origin test/docomo-imap-workers-connectivity
+git switch feat/card-import-foundation
+git pull --ff-only origin feat/card-import-foundation
 npm ci
 ```
 
-手元にこのブランチがまだないときは、`git switch -c test/docomo-imap-workers-connectivity --track origin/test/docomo-imap-workers-connectivity` を使用します。**`main` で実行しない**でください。
+手元にこのブランチがまだないときは、`git switch -c feat/card-import-foundation --track origin/feat/card-import-foundation` を使用します。**`main` で実行しない**でください。旧PR #63 / #68 の変更はPR #60へ統合されています。
 
 ### 2. ログイン・設定の確認
 
