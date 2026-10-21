@@ -11,7 +11,7 @@ import {
   type ImageBackupManifestEntry,
 } from '../core/imageBackup';
 import {
-  collectReferencedImageKeys,
+  collectImageReferencesFromJson,
   managedImagePrefix,
   selectConfirmedOrphans,
   summarizeImageStorage,
@@ -45,6 +45,8 @@ type CalendarHistoryRow = {
 type CalendarHistoryMetadataRow = Omit<CalendarHistoryRow, 'snapshot_json'>;
 
 type SnapshotJsonRow = {
+  calendar_id: string;
+  version: number;
   snapshot_json: string;
 };
 
@@ -528,14 +530,19 @@ async function handleImageStorageSummary(request: Request, env: Env): Promise<Re
   const unauthorizedResponse = requireWriteToken(request, env);
   if (unauthorizedResponse) return unauthorizedResponse;
 
-  const snapshots = await loadAllCalendarSnapshots(env);
-  const referencedKeys = collectReferencedImageKeys(snapshots);
+  let referencedKeys: Set<string>;
+  try {
+    referencedKeys = await loadProtectedImageKeys(env);
+  } catch {
+    return jsonError('reference_scan_failed', 'Image references could not be verified. Cleanup is unavailable.', 503);
+  }
   const objects = await listAllManagedImages(env.IMAGES);
   const summary = summarizeImageStorage(objects, referencedKeys);
   const existingKeys = new Set(objects.map((object) => object.key));
 
   return json({
     ...summary,
+    gcEligibleKeys: selectConfirmedOrphans(summary.orphanKeys, objects, referencedKeys),
     missingReferencedKeys: [...referencedKeys].filter((key) => !existingKeys.has(key)).sort(),
   });
 }
@@ -556,10 +563,17 @@ async function handleImageGc(request: Request, env: Env): Promise<Response> {
   if (requestedKeys.length > maxGcKeysPerRequest) {
     return jsonError('bad_request', `A maximum of ${maxGcKeysPerRequest} keys can be deleted at once.`, 400);
   }
+  if (requestedKeys.some((key) => typeof key !== 'string')) {
+    return jsonError('bad_request', 'Image keys must be strings.', 400);
+  }
 
-  const snapshots = await loadAllCalendarSnapshots(env);
-  const referencedKeys = collectReferencedImageKeys(snapshots);
   const objects = await listAllManagedImages(env.IMAGES);
+  let referencedKeys: Set<string>;
+  try {
+    referencedKeys = await loadProtectedImageKeys(env);
+  } catch {
+    return jsonError('reference_scan_failed', 'Image references could not be verified. No images were deleted.', 503);
+  }
   const deletableKeys = selectConfirmedOrphans(requestedKeys, objects, referencedKeys);
 
   for (const key of deletableKeys) {
@@ -601,22 +615,32 @@ function requireWriteToken(request: Request, env: Env): Response | undefined {
   return jsonError('unauthorized', 'Write token is invalid.', 401);
 }
 
-async function loadAllCalendarSnapshots(env: Env): Promise<CalendarDataSnapshot[]> {
-  const snapshots: CalendarDataSnapshot[] = [];
-  let offset = 0;
+async function loadProtectedImageKeys(env: Env): Promise<Set<string>> {
+  const keys = new Set<string>();
   const pageSize = 100;
-
-  for (;;) {
-    const result = await env.DB.prepare(
-      'SELECT snapshot_json FROM calendar_snapshots ORDER BY calendar_id LIMIT ? OFFSET ?',
-    ).bind(pageSize, offset).all<SnapshotJsonRow>();
-    const page = result.results ?? [];
-    snapshots.push(...page.map((row) => parseCalendarSnapshot(row.snapshot_json)));
-    if (page.length < pageSize) break;
-    offset += page.length;
+  // Both table names are fixed internal constants. Keyset pagination avoids
+  // skipping retained versions when older history is pruned during scanning.
+  for (const table of ['calendar_snapshots', 'calendar_snapshot_history'] as const) {
+    let calendarCursor: string | null = null;
+    let versionCursor = -1;
+    for (;;) {
+      const result: D1Result<SnapshotJsonRow> = await env.DB.prepare(`
+        SELECT calendar_id, version, snapshot_json FROM ${table}
+        WHERE (? IS NULL OR calendar_id > ? OR (calendar_id = ? AND version > ?))
+        ORDER BY calendar_id, version LIMIT ?
+      `).bind(calendarCursor, calendarCursor, calendarCursor, versionCursor, pageSize).all<SnapshotJsonRow>();
+      if (!result.success || !Array.isArray(result.results)) throw new Error('Image reference scan failed.');
+      const page = result.results;
+      for (const row of page) {
+        for (const key of collectImageReferencesFromJson(row.snapshot_json)) keys.add(key);
+      }
+      if (page.length < pageSize) break;
+      const last = page[page.length - 1];
+      calendarCursor = last.calendar_id;
+      versionCursor = last.version;
+    }
   }
-
-  return snapshots;
+  return keys;
 }
 
 async function listAllManagedImages(bucket: R2Bucket): Promise<ImageObjectInfo[]> {
@@ -625,7 +649,7 @@ async function listAllManagedImages(bucket: R2Bucket): Promise<ImageObjectInfo[]
 
   do {
     const page = await bucket.list({ prefix: managedImagePrefix, cursor, limit: 1000 });
-    objects.push(...page.objects.map((object) => ({ key: object.key, size: object.size })));
+    objects.push(...page.objects.map((object) => ({ key: object.key, size: object.size, uploaded: object.uploaded })));
     cursor = page.truncated ? page.cursor : undefined;
   } while (cursor);
 
