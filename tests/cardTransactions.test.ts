@@ -12,6 +12,9 @@ test('rejects unknown and unsafe patch fields', () => {
   assert.equal(validateCardTransactionPatch({ sourceId: 'attacker' }).ok, false);
   assert.equal(validateCardTransactionPatch({ amountYen: -10 }).ok, false);
   assert.equal(validateCardTransactionPatch({ status: 'unknown' }).ok, false);
+  for (const status of [['confirmed'], { value: 'confirmed' }, 1, true, null]) {
+    assert.equal(validateCardTransactionPatch({ status }).ok, false);
+  }
   assert.equal(validateCardTransactionPatch({ confirmedAmountYen: 10.5 }).ok, false);
   assert.equal(validateCardTransactionPatch({ confirmedPaymentDate: '2026-02-30' }).ok, false);
   assert.equal(validateCardTransactionPatch({}).ok, false);
