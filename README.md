@@ -316,8 +316,9 @@ settings
 - 毎日のCronで `IMAGES` から `BACKUPS` へETag単位の世代バックアップを作成
 - `GET /api/admin/image-backups?imageKey=...` でバックアップ世代一覧を取得
 - `POST /api/admin/image-restore` で指定世代または最新世代を復元
-- `GET /api/admin/image-storage` でR2使用量・孤児画像候補・参照切れを確認
-- `POST /api/admin/image-gc` は最新D1 snapshotで再確認した孤児だけを、明示確認付きで削除
+- `GET /api/admin/image-storage` でR2使用量・孤児画像候補・参照切れを確認。現在のsnapshotと保持中の全履歴の画像（旧画像URLを含む）を参照対象とし、`gcEligibleKeys` にアップロード後24時間以上経過した削除可能候補を返す
+- `POST /api/admin/image-gc` は現在と履歴の参照を再確認し、アップロード後24時間以上経過した孤児だけを明示確認付きで削除。参照データの破損や履歴取得失敗時は503で停止し、削除しない
+- 24時間の猶予は保存待ちの保護であり、長期間未保存の編集や参照確認後の同時更新を原子的に保護するものではない。GCは編集・アップロード・復元を行っていない時間に実行し、#23の競合制御は継続対応する
 
 将来自宅サーバーでは、同じ `imageKey` をローカルファイルパスやMinIO keyへ置き換えます。
 
