@@ -13,8 +13,9 @@ export type ParseResult =
 
 const normalize = (value: string) => value.normalize('NFKC').replace(/\r\n?/g, '\n');
 const parseAmount = (raw: string): number | null => {
-  const amount = raw.replace(/[,，\s]/g, '');
-  if (!/^\d{1,12}$/.test(amount)) return null;
+  if (!/^(?:\d{1,12}|\d{1,3}(?:,\d{3}){1,3})$/.test(raw)) return null;
+  const amount = raw.replace(/,/g, '');
+  if (amount.length > 12) return null;
   const n = Number(amount);
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 };
@@ -35,15 +36,23 @@ const reject = (reason: string): ParseResult => ({ ok: false, reason });
 export function parseCardNotification(subject: string, textBody: string): ParseResult {
   const text = normalize(textBody);
   const heading = normalize(subject);
+  // Multiple notifications and forwarded messages are ambiguous: never combine their fields.
+  const markers = text.match(/JCBカードのご利用がありましたのでご連絡します|Olive\/クレジットについてカードの利用内容をお知らせします/g);
+  if (markers && markers.length > 1) return reject('multiple_notifications');
   // Do not parse forwarded footers as transactions. All required fields must appear in the notification body.
   if (/JCBカードのご利用がありましたのでご連絡します/.test(text)) {
     if (!/JCB/.test(heading) && !/カード名称\s*:\s*.*JCB/.test(text)) return reject('jcb_identity_missing');
-    const date = /【ご利用日時\(日本時間\)】\s*([^\n【]+)/.exec(text);
-    const amount = /【ご利用金額】\s*([\d,]+)\s*円/.exec(text);
-    const merchant = /【ご利用先】\s*([^\n【]+)/.exec(text);
+    const notification = text.slice(text.indexOf('JCBカードのご利用がありましたのでご連絡します'))
+      .split(/▼ご留意点|転送されたメッセージ|転送メッセージ|Forwarded message|Original Message/i)[0];
+    const labels = ['【ご利用日時(日本時間)】', '【ご利用金額】', '【ご利用先】'];
+    if (labels.some((label) => notification.split(label).length > 2)) return reject('duplicate_jcb_fields');
+    const date = /【ご利用日時\(日本時間\)】[ \t]*([^\n【]+)/.exec(notification);
+    const amount = /【ご利用金額】[ \t]*([^\n【]+)/.exec(notification);
+    const merchant = /【ご利用先】[ \t]*([^\n【]+)/.exec(notification);
     if (!date || !amount || !merchant) return reject('missing_jcb_fields');
     const time = parseTimestamp(date[1]);
-    const yen = parseAmount(amount[1]);
+    const amountField = /^(.+?)[ \t]*円[ \t]*$/.exec(amount[1]);
+    const yen = amountField ? parseAmount(amountField[1]) : null;
     const name = merchant[1].trim();
     if (!time || yen === null || !name || name.length > 256) return reject('invalid_jcb_fields');
     return { ok: true, transaction: { provider: 'jcb', ...time, amountYen: yen, merchant: name, status: 'pending' } };
@@ -59,7 +68,8 @@ export function parseCardNotification(subject: string, textBody: string): ParseR
     if (boundary < 0) return reject('missing_olive_boundary');
     const detail = tail.slice(0, boundary).trim();
     // Flattened forwarded mail is ambiguous if there are multiple prices or no yen amount.
-    const hits = [...detail.matchAll(/([\d,]+)\s*円/g)];
+    // Capture the whole numeric token, including unsupported signs/fractions, to reject it.
+    const hits = [...detail.matchAll(/(?<![\d,.+\-−])([+\-−]?\d[\d,.]*(?:[eE][+\-]?\d+)?)[ \t]*円/g)];
     if (hits.length !== 1) return reject('ambiguous_olive_amount');
     const yen = parseAmount(hits[0][1]);
     const merchant = detail.slice(0, hits[0].index).trim().replace(/\s*\(買物\)\s*$/, '').trim();

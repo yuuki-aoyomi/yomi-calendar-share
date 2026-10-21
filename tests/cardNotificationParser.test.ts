@@ -2,6 +2,41 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCardNotification } from '../server/core/cardNotificationParser';
 
+const jcb = (amount: string) => `JCBカードのご利用がありましたのでご連絡します。
+【ご利用日時(日本時間)】 2026/10/21 12:00
+【ご利用金額】 ${amount}円
+【ご利用先】 サンプル店`;
+const olive = (amount: string) => `Olive/クレジットについてカードの利用内容をお知らせします。
+ご利用日時：2026/10/21 14:22サンプル店（買物）${amount}円
+本メールはカードご利用の承認照会`;
+
+test('rejects signed, fractional and malformed amounts without matching a suffix', () => {
+  for (const amount of ['-980', '+980', '−980', '1.23', '1,2,3', '1234,567', '1e3', '0', '1234567890123']) {
+    assert.equal(parseCardNotification('JCBカードご利用通知', jcb(amount)).ok, false, `JCB: ${amount}`);
+    assert.equal(parseCardNotification('ご利用のお知らせ【三井住友カード】', olive(amount)).ok, false, `Olive: ${amount}`);
+  }
+  for (const amount of ['980', '1,234', '1234567', '１２，３４５']) {
+    const expected = Number(amount.normalize('NFKC').replace(/,/g, ''));
+    for (const result of [parseCardNotification('JCBカードご利用通知', jcb(amount)),
+      parseCardNotification('ご利用のお知らせ【三井住友カード】', olive(amount))]) {
+      assert.equal(result.ok, true, amount);
+      if (result.ok) assert.equal(result.transaction.amountYen, expected);
+    }
+  }
+});
+
+test('never fills missing JCB fields from forwarded or repeated notifications', () => {
+  const missingAmount = jcb('200').replace('【ご利用金額】 200円\n', '');
+  const previous = jcb('300').replace('2026/10/21', '2026/10/20');
+  for (const body of [
+    missingAmount + '\n転送されたメッセージ\n' + previous,
+    jcb('200') + '\n' + previous,
+    missingAmount + '\nForwarded message\n【ご利用金額】 300円',
+    missingAmount + '\n▼ご留意点\n【ご利用金額】 300円',
+    jcb('200') + '\n【ご利用金額】 300円',
+  ]) assert.equal(parseCardNotification('JCBカードご利用通知', body).ok, false);
+});
+
 test('JCB notification parses named fields, not examples in footer', () => {
   const result = parseCardNotification('カードご利用通知', `カード名称 ： 【OS】JCBカードW NL
 JCBカードのご利用がありましたのでご連絡します。
