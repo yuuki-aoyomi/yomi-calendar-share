@@ -11,7 +11,7 @@ const olive = (amount: string) => `Olive/クレジットについてカードの
 本メールはカードご利用の承認照会`;
 
 test('rejects signed, fractional and malformed amounts without matching a suffix', () => {
-  for (const amount of ['-980', '+980', '−980', '1.23', '1,2,3', '1234,567', '1e3', '0', '1234567890123']) {
+  for (const amount of ['-980', '- 980', '+980', '−980', '1.23', '1. 23', '1 234', '1,2,3', '1234,567', '1e3', '0', '1234567890123']) {
     assert.equal(parseCardNotification('JCBカードご利用通知', jcb(amount)).ok, false, `JCB: ${amount}`);
     assert.equal(parseCardNotification('ご利用のお知らせ【三井住友カード】', olive(amount)).ok, false, `Olive: ${amount}`);
   }
