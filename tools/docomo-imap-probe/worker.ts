@@ -21,4 +21,3 @@ export default {
     return Response.json(result, { status: result.ok ? 200 : 502, headers: { 'cache-control': 'no-store' } });
   },
 };
-
