@@ -118,6 +118,8 @@ docs/           operation and portability notes
 
 実運用中のため、既存データ互換を重視しています。
 
+保存API・全体Import・部分Importでは共通の実行時検証を行い、不正な配列/項目型、重複ID、不正な日付や数値を反映前に拒否します。保存APIはHTTP 400を返し、現在データ・version・履歴を変更しません。従来の6コレクション（予定・家計・ラブログ・タグ・バイト・カード）は必須とし、旧データで未設定の `subscriptions` / `dailyPhotos` と予定の `tagIds` / `tags` / `timelineItems` のみ空配列へ補完します。明示的な `null` や不正な型は空配列へ変換しません。既存DBの読み出し時の破損検出は #56 の残作業です。
+
 - localStorage key は維持
 - D1 snapshot 形式は維持
 - 既存サブスクは `billingCycle` 未設定なら月額扱い

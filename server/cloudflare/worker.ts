@@ -1,4 +1,5 @@
 import type { CalendarDataSnapshot } from '../../src/repositories/calendarRepository';
+import { SnapshotValidationError, validateCalendarSnapshot } from '../../src/utils/validateCalendarSnapshot';
 import { defaultCalendarSnapshot, parseCalendarSnapshot } from '../core/calendarSnapshot';
 import { json, jsonError } from '../core/http';
 import { createCalendarBackup, type BackupRow } from '../core/calendarBackup';
@@ -159,7 +160,7 @@ async function handleCalendarRequest(request: Request, env: Env, url: URL): Prom
     if (unauthorizedResponse) return unauthorizedResponse;
 
     const body = await request.json<{
-      snapshot?: CalendarDataSnapshot;
+      snapshot?: unknown;
       expectedVersion?: number;
     }>().catch(() => undefined);
 
@@ -167,13 +168,25 @@ async function handleCalendarRequest(request: Request, env: Env, url: URL): Prom
       return jsonError('bad_request', 'snapshot is required.', 400);
     }
 
-    if (!Number.isInteger(body.expectedVersion) || (body.expectedVersion ?? -1) < 0) {
+    if (!Number.isSafeInteger(body.expectedVersion) || (body.expectedVersion ?? -1) < 0) {
       return jsonError('bad_request', 'expectedVersion must be a non-negative integer.', 400);
     }
 
     const expectedVersion = body.expectedVersion as number;
-    const snapshotJson = JSON.stringify(body.snapshot);
+    const rawSnapshotJson = JSON.stringify(body.snapshot);
 
+    if (new TextEncoder().encode(rawSnapshotJson).length > maxSnapshotBytes) {
+      return jsonError('payload_too_large', 'snapshot is too large.', 413);
+    }
+
+    let snapshot: CalendarDataSnapshot;
+    try {
+      snapshot = validateCalendarSnapshot(body.snapshot);
+    } catch (error) {
+      if (error instanceof SnapshotValidationError) return jsonError('invalid_snapshot', error.message, 400);
+      throw error;
+    }
+    const snapshotJson = JSON.stringify(snapshot);
     if (new TextEncoder().encode(snapshotJson).length > maxSnapshotBytes) {
       return jsonError('payload_too_large', 'snapshot is too large.', 413);
     }

@@ -1,5 +1,6 @@
 import type { AppBackupData } from '../types/calendar';
 import { assertReferenceIntegrity } from './referenceIntegrity';
+import { validateCalendarSnapshot } from './validateCalendarSnapshot';
 
 export type PartialExportSelection = {
   events?: boolean;
@@ -141,25 +142,21 @@ export const validatePartialTransferPayload = (value: unknown): PartialTransferP
     throw new Error('対応していない部分Importデータです。');
   }
 
-  for (const collection of collectionNames) {
-    if (!Array.isArray(payload.data[collection])) {
-      throw new Error(`${collection} が配列ではありません。`);
-    }
-  }
-
-  assertReferenceIntegrity(payload.data);
-  return payload;
+  const data = validateCalendarSnapshot(payload.data);
+  assertReferenceIntegrity(data);
+  return { ...payload, data };
 };
 
 export const previewPartialImport = (
   current: AppBackupData['data'],
   payload: PartialTransferPayload,
 ): PartialImportPreview => {
+  const validated = validatePartialTransferPayload(payload);
   const preview = {} as PartialImportPreview;
 
   for (const collection of collectionNames) {
     const currentItems = current[collection] as Array<{ id: string }>;
-    const incomingItems = payload.data[collection] as Array<{ id: string }>;
+    const incomingItems = validated.data[collection] as Array<{ id: string }>;
     const byId = new Map(currentItems.map((item) => [item.id, item]));
     const contentKeys = new Set(currentItems.map(contentFingerprint));
     let newItems = 0;
@@ -229,17 +226,17 @@ export const mergePartialImport = (
   payload: PartialTransferPayload,
   strategy: ImportStrategy,
 ): AppBackupData['data'] => {
-  validatePartialTransferPayload(payload);
+  const validated = validatePartialTransferPayload(payload);
 
   const merged: AppBackupData['data'] = {
-    events: mergeCollection(current.events, payload.data.events, strategy),
-    moneyRecords: mergeCollection(current.moneyRecords, payload.data.moneyRecords, strategy),
-    loveLogs: mergeCollection(current.loveLogs, payload.data.loveLogs, strategy),
-    tags: mergeCollection(current.tags, payload.data.tags, strategy),
-    partTimeJobs: mergeCollection(current.partTimeJobs, payload.data.partTimeJobs, strategy),
-    creditCards: mergeCollection(current.creditCards, payload.data.creditCards, strategy),
-    subscriptions: mergeCollection(current.subscriptions, payload.data.subscriptions, strategy),
-    dailyPhotos: mergeCollection(current.dailyPhotos, payload.data.dailyPhotos, strategy),
+    events: mergeCollection(current.events, validated.data.events, strategy),
+    moneyRecords: mergeCollection(current.moneyRecords, validated.data.moneyRecords, strategy),
+    loveLogs: mergeCollection(current.loveLogs, validated.data.loveLogs, strategy),
+    tags: mergeCollection(current.tags, validated.data.tags, strategy),
+    partTimeJobs: mergeCollection(current.partTimeJobs, validated.data.partTimeJobs, strategy),
+    creditCards: mergeCollection(current.creditCards, validated.data.creditCards, strategy),
+    subscriptions: mergeCollection(current.subscriptions, validated.data.subscriptions, strategy),
+    dailyPhotos: mergeCollection(current.dailyPhotos, validated.data.dailyPhotos, strategy),
   };
 
   assertReferenceIntegrity(merged);
