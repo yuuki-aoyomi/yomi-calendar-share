@@ -8,6 +8,8 @@ Cloudflare Workers（Cloudflare側で実行）から、ドコモメールのIMAP
 
 ## 前提
 
+ローカルの`npm test`で合成TCPストリーム・仮想時計による応答検証を行い、`npm run worker:check`でこの専用Workerも型検査します。成功条件は8秒の総期限内に4096バイト以下で完全なCRLF終端の正常greetingを受信することです。途中切断は`incomplete_greeting`、サイズ上限は`too_large`を返します。接続終了処理の完了は応答を遅らせないよう待機しません。これらのテストはCloudflareからの実接続確認を代替しません。
+
 - Windows / PowerShell、Git BashなどでNode.jsとnpmを使用できること。
 - このリポジトリにアクセスでき、Cloudflareへログインできること。
 - コマンドを実行する場所はリポジトリのルート（`package.json` がある場所）。
