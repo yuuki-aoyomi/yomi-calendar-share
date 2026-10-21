@@ -105,7 +105,7 @@ export const fetchCalendarSnapshot = async (
   });
 
   if (!response.ok) {
-    throw new Error('カレンダーデータの読み込みに失敗しました。');
+    throw new Error(await getResponseErrorMessage(response, 'カレンダーデータの読み込みに失敗しました。'));
   }
 
   const payload = (await response.json()) as CalendarSnapshotPayload;

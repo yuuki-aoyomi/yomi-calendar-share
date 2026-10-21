@@ -248,10 +248,10 @@ function App() {
         setSyncStatus(typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'saved');
         setIsRemoteLoaded(true);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (!isCancelled) {
           lastSavedRemoteSnapshot.current = '';
-          setRemoteLoadError('トークンが違うか、データの読み込みに失敗しました。');
+          setRemoteLoadError(error instanceof Error ? error.message : 'カレンダーデータの読み込みに失敗しました。');
           setIsRemoteLoaded(false);
         }
       });

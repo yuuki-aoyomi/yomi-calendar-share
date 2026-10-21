@@ -1,6 +1,6 @@
 import type { CalendarDataSnapshot } from '../../src/repositories/calendarRepository';
 import { SnapshotValidationError, validateCalendarSnapshot } from '../../src/utils/validateCalendarSnapshot';
-import { defaultCalendarSnapshot, parseCalendarSnapshot } from '../core/calendarSnapshot';
+import { defaultCalendarSnapshot, parseCalendarSnapshot, StoredSnapshotError } from '../core/calendarSnapshot';
 import { json, jsonError } from '../core/http';
 import { createCalendarBackup, type BackupRow } from '../core/calendarBackup';
 import { selectExpiredBackupKeys } from '../core/backupRetention';
@@ -78,11 +78,11 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname.startsWith('/api/calendar-history/')) {
-      return handleCalendarHistoryRequest(request, env, url);
+      return handleCalendarHistoryRequest(request, env, url).catch(storedSnapshotErrorResponse);
     }
 
     if (url.pathname.startsWith('/api/calendar/')) {
-      return handleCalendarRequest(request, env, url);
+      return handleCalendarRequest(request, env, url).catch(storedSnapshotErrorResponse);
     }
 
     if (url.pathname === '/api/admin/image-backups' && request.method === 'GET') {
@@ -116,6 +116,14 @@ export default {
     return env.ASSETS.fetch(request);
   },
 };
+
+function storedSnapshotErrorResponse(error: unknown): Response {
+  if (error instanceof StoredSnapshotError) {
+    return jsonError('invalid_stored_snapshot',
+      '保存データの形式が正しくないため処理を停止しました。データは変更していません。正常な履歴やバックアップを確認してください。', 500);
+  }
+  throw error;
+}
 
 async function handleCalendarRequest(request: Request, env: Env, url: URL): Promise<Response> {
   const calendarId = decodeURIComponent(url.pathname.replace('/api/calendar/', '')).trim();
@@ -258,7 +266,7 @@ async function handleCalendarHistoryRequest(request: Request, env: Env, url: URL
 
     if (versionParam !== null) {
       const version = Number(versionParam);
-      if (!Number.isInteger(version) || version < 1) {
+      if (!Number.isSafeInteger(version) || version < 1) {
         return jsonError('bad_request', 'version must be a positive integer.', 400);
       }
 
@@ -309,10 +317,10 @@ async function handleCalendarHistoryRequest(request: Request, env: Env, url: URL
 
   if (request.method === 'POST') {
     const body = await request.json<{ version?: number; expectedVersion?: number }>().catch(() => undefined);
-    if (!Number.isInteger(body?.version) || (body?.version ?? 0) < 1) {
+    if (!Number.isSafeInteger(body?.version) || (body?.version ?? 0) < 1) {
       return jsonError('bad_request', 'version must be a positive integer.', 400);
     }
-    if (!Number.isInteger(body?.expectedVersion) || (body?.expectedVersion ?? -1) < 1) {
+    if (!Number.isSafeInteger(body?.expectedVersion) || (body?.expectedVersion ?? -1) < 1) {
       return jsonError('bad_request', 'expectedVersion must be a positive integer.', 400);
     }
 
@@ -330,6 +338,12 @@ async function handleCalendarHistoryRequest(request: Request, env: Env, url: URL
 
     if (!source) return jsonError('not_found', 'Calendar history version not found.', 404);
 
+    // Validate before UPDATE so an unreadable history never replaces live data.
+    const restoredSnapshotJson = JSON.stringify(parseCalendarSnapshot(source.snapshot_json));
+    if (new TextEncoder().encode(restoredSnapshotJson).length > maxSnapshotBytes) {
+      return jsonError('payload_too_large', 'History snapshot is too large to restore.', 413);
+    }
+
     const result = await env.DB.prepare(
       `
         UPDATE calendar_snapshots
@@ -337,7 +351,7 @@ async function handleCalendarHistoryRequest(request: Request, env: Env, url: URL
         WHERE calendar_id = ? AND version = ?
       `,
     )
-      .bind(source.snapshot_json, restoreVersion, calendarId, expectedVersion)
+      .bind(restoredSnapshotJson, restoreVersion, calendarId, expectedVersion)
       .run();
 
     if ((result.meta.changes ?? 0) === 0) {
