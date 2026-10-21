@@ -1,4 +1,5 @@
-import { cardTransactionPatchColumns, validateCardTransactionPatch } from '../core/cardTransactions';
+import { cardTransactionPatchColumns, decodeCardTransactionCursor, encodeCardTransactionCursor,
+  validateCardTransactionPatch } from '../core/cardTransactions';
 import { json, jsonError } from '../core/http';
 
 type CardTransactionRow = {
@@ -26,15 +27,28 @@ export async function handleCardTransactions(
     const limit = Number(limitString);
     if (!Number.isInteger(limit) || limit < 1 || limit > 100)
       return jsonError('bad_request', 'limit must be between 1 and 100.', 400);
+    const rawCursor = url.searchParams.get('cursor');
+    const cursor = rawCursor === null ? null : decodeCardTransactionCursor(rawCursor, calendarId);
+    if (rawCursor !== null && !cursor) return jsonError('bad_request', 'Invalid cursor for this calendar.', 400);
+    const after = cursor ? ' AND (transaction_date, created_at, id) < (?, ?, ?)' : '';
+    const bindings = cursor
+      ? [calendarId, cursor.transactionDate, cursor.createdAt, cursor.id, limit + 1]
+      : [calendarId, limit + 1];
     const rows = await db.prepare(`
       SELECT id, calendar_id, source_id, transaction_date, used_at, amount_yen,
              merchant, category, status, confirmed_amount_yen,
              expected_payment_date, confirmed_payment_date, linked_money_record_id,
              needs_review, created_at, updated_at
-      FROM card_transactions WHERE calendar_id = ?
+      FROM card_transactions WHERE calendar_id = ?${after}
       ORDER BY transaction_date DESC, created_at DESC, id DESC LIMIT ?
-    `).bind(calendarId, limit).all<CardTransactionRow>();
-    return json({ transactions: (rows.results ?? []).map(toPublicTransaction) });
+    `).bind(...bindings).all<CardTransactionRow>();
+    const results = rows.results ?? [];
+    const page = results.slice(0, limit);
+    const last = page[page.length - 1];
+    const nextCursor = results.length > limit && last
+      ? encodeCardTransactionCursor(calendarId, { transactionDate: last.transaction_date, createdAt: last.created_at, id: last.id })
+      : null;
+    return json({ transactions: page.map(toPublicTransaction), nextCursor });
   }
 
   if (request.method === 'PATCH' && id) {
