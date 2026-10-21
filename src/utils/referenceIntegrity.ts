@@ -34,14 +34,23 @@ export const getCreditCardReferenceImpact = (
 export const getTagReferenceImpact = (
   data: AppBackupData['data'],
   tagId: string,
-): ReferenceImpact => ({
-  eventCount: data.events.filter((event) => (event.tagIds ?? []).includes(tagId)).length,
-  moneyRecordCount: 0,
-  subscriptionCount: 0,
-});
+): ReferenceImpact => {
+  // Deleting a tag also deletes every job/card using it. Count those
+  // indirect references once, even when a record references both settings.
+  const jobIds = new Set(data.partTimeJobs.filter((job) => job.tagId === tagId).map((job) => job.id));
+  const cardIds = new Set(data.creditCards.filter((card) => card.tagId === tagId).map((card) => card.id));
+  return {
+    eventCount: data.events.filter((event) => (event.tagIds ?? []).includes(tagId)).length,
+    moneyRecordCount: data.moneyRecords.filter((record) =>
+      (record.partTimeJobId && jobIds.has(record.partTimeJobId))
+      || (record.creditCardId && cardIds.has(record.creditCardId))).length,
+    subscriptionCount: data.subscriptions.filter((subscription) =>
+      subscription.creditCardId && cardIds.has(subscription.creditCardId)).length,
+  };
+};
 
 export const hasBlockingReferences = (impact: ReferenceImpact): boolean =>
-  impact.moneyRecordCount > 0 || impact.subscriptionCount > 0;
+  impact.eventCount > 0 || impact.moneyRecordCount > 0 || impact.subscriptionCount > 0;
 
 export const formatReferenceImpact = (impact: ReferenceImpact): string => {
   const parts: string[] = [];
