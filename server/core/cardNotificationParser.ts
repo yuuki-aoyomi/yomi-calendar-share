@@ -69,7 +69,7 @@ export function parseCardNotification(subject: string, textBody: string): ParseR
     const detail = tail.slice(0, boundary).trim();
     // Flattened forwarded mail is ambiguous if there are multiple prices or no yen amount.
     // Capture the whole numeric token, including unsupported signs/fractions, to reject it.
-    const hits = [...detail.matchAll(/(?<![\d,.+\-−])([+\-−]?\d[\d,.]*(?:[eE][+\-]?\d+)?)[ \t]*円/g)];
+    const hits = [...detail.matchAll(/(?<![\d,.+\-−])((?:[+\-−][ \t]*)?\d[\d,.]*(?:[ \t]+[\d,.]+)*(?:[eE][+\-]?\d+)?)[ \t]*円/g)];
     if (hits.length !== 1) return reject('ambiguous_olive_amount');
     const yen = parseAmount(hits[0][1]);
     const merchant = detail.slice(0, hits[0].index).trim().replace(/\s*\(買物\)\s*$/, '').trim();
