@@ -24,6 +24,8 @@
 
 `node scripts/restore-d1.mjs backup.json` はバックアップ形式、件数、重複ID、各行のJSONを検証するだけの**dry-run**です。DBへは書き込みません。
 
+復元先にはmigration 0001〜0003を適用してください。新規行はversion 1、既存行は現在のversion + 1で復元し、更新日時は復元実行時刻になります。既存行の作成日時は保持します。履歴には`restore`を記録しますが、バックアップ世代はローカルの履歴versionとは異なるため`restored_from_version`はNULLです。全行と履歴の変更は同一トランザクションで行います。復元前のversionによる保存は409になります。CLIはローカルにインストール済みのWranglerをNode.jsから起動し、Windowsでもシェルを介しません。
+
 ```sh
 node scripts/restore-d1.mjs backup.json
 ```
