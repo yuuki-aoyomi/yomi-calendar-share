@@ -8,7 +8,7 @@ React + TypeScript + Vite で作る、予定・ToDo・お金・日別写真・�
 
 現在は実運用しながら改善中です。
 
-- フロントエンドは React の通常SPA
+- フロントエンドは React のSPAで、productionではPWAとしてインストール可能
 - ローカル開発では `localStorage` 保存
 - 本番HTTPSでは同一originのHTTP APIを利用
 - Cloudflare版では D1 にカレンダー全体のJSON snapshotを保存
@@ -56,6 +56,10 @@ React + TypeScript + Vite で作る、予定・ToDo・お金・日別写真・�
   - 手動天気背景: 晴れ、雨、雷、曇り、雪、霰・雹
   - 設定でON/OFF
 - JSONバックアップの書き出し / 読み込み
+- PWA
+  - Web App Manifest / 192px・512pxアイコン / maskable icon
+  - productionのみService Workerを登録
+  - アプリシェルと静的ファイルをキャッシュし、`/api/` はキャッシュ対象外
 
 ## Calendar version history
 
@@ -152,7 +156,7 @@ Local URL:
 http://localhost:5173/
 ```
 
-ローカル開発では、通常 `localStorage` に保存されます。
+ローカル開発では、通常 `localStorage` に保存されます。Service Workerはproduction buildでのみ登録されます。
 
 ## Scripts
 
