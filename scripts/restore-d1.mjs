@@ -2,8 +2,10 @@
 // 安全のため、復元先は明示されたローカルD1のみ。--remoteは受け付けません。
 import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { buildRestoreSql } from './restore-d1-sql.mjs';
 
 const usage = 'Usage: node scripts/restore-d1.mjs <backup.json> [--apply --database <local-db-name>]';
 const args = process.argv.slice(2);
@@ -40,17 +42,14 @@ console.log('Validated backup:', backup.createdAt, 'rows:', backup.rowCount);
 if (!apply) { console.log('Dry run only. No database was changed.'); process.exit(0); }
 if (backup.rowCount === 0) { console.log('Empty backup: nothing to restore.'); process.exit(0); }
 if (!/^[a-zA-Z0-9_-]+$/.test(database)) fail('Invalid local database name');
-const quote = (value) => "'" + value.replaceAll("'", "''") + "'";
-const sql = [
-  'BEGIN TRANSACTION;',
-  ...backup.rows.map((row) => `INSERT INTO calendar_snapshots (calendar_id, snapshot_json, created_at, updated_at) VALUES (${quote(row.calendar_id)}, ${quote(row.snapshot_json)}, ${quote(row.created_at)}, ${quote(row.updated_at)}) ON CONFLICT(calendar_id) DO UPDATE SET snapshot_json = excluded.snapshot_json, created_at = excluded.created_at, updated_at = excluded.updated_at;`),
-  'COMMIT;',
-].join('\n');
+const sql = buildRestoreSql(backup.rows);
 const dir = mkdtempSync(join(tmpdir(), 'yomi-d1-restore-'));
 try {
   const sqlFile = join(dir, 'restore.sql');
   writeFileSync(sqlFile, sql, { mode: 0o600 });
-  const result = spawnSync('npx', ['--no-install', 'wrangler', 'd1', 'execute', database, '--local', '--file', sqlFile], { stdio: 'inherit' });
+  const require = createRequire(import.meta.url);
+  const wrangler = join(dirname(require.resolve('wrangler')), '../bin/wrangler.js');
+  const result = spawnSync(process.execPath, [wrangler, 'd1', 'execute', database, '--local', '--file', sqlFile], { stdio: 'inherit' });
   if (result.error) fail(result.error.message);
   if (result.status !== 0) fail('Local restore failed; check Wrangler output');
   console.log('Local restore completed. Verify rows in the target database.');

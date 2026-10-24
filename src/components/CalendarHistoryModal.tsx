@@ -136,7 +136,9 @@ export function CalendarHistoryModal({ calendarId, writeToken, canRestore, onClo
                   <span>{displayDate(preview.createdAt)}</span>
                 </div>
                 {preview.operation === 'restore' && <p className="history-note">
-                  Version {preview.restoredFromVersion} から復元された履歴です。
+                  {preview.restoredFromVersion === null
+                    ? 'バックアップから復元された履歴です。'
+                    : `Version ${preview.restoredFromVersion} から復元された履歴です。`}
                 </p>}
                 <div className="history-stats">
                   <span>予定 <strong>{preview.snapshot.events.length}件</strong></span>
