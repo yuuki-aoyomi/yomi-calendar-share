@@ -8,7 +8,7 @@ import { decodeCardTransactionCursor, encodeCardTransactionCursor } from '../ser
 function fixture() {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec('PRAGMA foreign_keys = ON');
-  for (const file of ['0004_card_import.sql', '0005_card_transaction_pagination.sql']) {
+  for (const file of ['0004_card_import.sql', '0005_card_transaction_pagination.sql', '0006_card_transaction_revision.sql']) {
     sqlite.exec(readFileSync('migrations/' + file, 'utf8'));
   }
   sqlite.exec(`INSERT INTO card_import_sources (id, calendar_id, credit_card_id, provider, label)
@@ -78,11 +78,11 @@ test('invalid status returns 400 without changing SQLite; scoped PATCH still wor
   const { sqlite, request } = fixture();
   try {
     for (const status of [['confirmed'], { value: 'confirmed' }, null, true, 1]) {
-      assert.equal((await request('calendarId=default', { status }, '/t000')).status, 400);
+      assert.equal((await request('calendarId=default', { expectedRevision: 0, status }, '/t000')).status, 400);
     }
     assert.equal(sqlite.prepare("SELECT status FROM card_transactions WHERE id = 't000'").get()?.status, 'pending');
-    assert.equal((await request('calendarId=other', { status: 'confirmed' }, '/t000')).status, 404);
-    assert.equal((await request('calendarId=default', { status: 'confirmed' }, '/t000')).status, 200);
+    assert.equal((await request('calendarId=other', { expectedRevision: 0, status: 'confirmed' }, '/t000')).status, 404);
+    assert.equal((await request('calendarId=default', { expectedRevision: 0, status: 'confirmed' }, '/t000')).status, 200);
   } finally { sqlite.close(); }
 });
 
@@ -111,5 +111,58 @@ test('both first and cursor page queries use the covering sort index without a t
       assert.match(details, /idx_card_transactions_calendar_page/);
       assert.doesNotMatch(details, /TEMP B-TREE/);
     }
+  } finally { sqlite.close(); }
+});
+
+
+test('revision CAS rejects stale writers, returns exact updates and permits refreshed retry', async () => {
+  const { sqlite, request } = fixture();
+  try {
+    const initial = await (await request('calendarId=default&limit=100')).json();
+    assert.ok(initial.transactions.every((row: { revision: number }) => row.revision === 0));
+    const [a, b] = await Promise.all([
+      request('calendarId=default', { expectedRevision: 0, status: 'confirmed', confirmedAmountYen: 500 }, '/t000'),
+      request('calendarId=default', { expectedRevision: 0, status: 'pending' }, '/t000'),
+    ]);
+    assert.deepEqual([a.status, b.status].sort(), [200, 409]);
+    const winner = await (a.status === 200 ? a : b).json();
+    assert.equal(winner.transaction.revision, 1);
+    const stored = sqlite.prepare("SELECT status, revision FROM card_transactions WHERE id = 't000'").get();
+    assert.equal(stored?.status, winner.transaction.status);
+    assert.equal(stored?.revision, 1);
+    assert.equal((await request('calendarId=default', { expectedRevision: 0, merchant: 'stale' }, '/t000')).status, 409);
+    const retry = await request('calendarId=default', { expectedRevision: 1, merchant: 'refreshed' }, '/t000');
+    assert.equal(retry.status, 200);
+    const updated = (await retry.json()).transaction;
+    assert.equal(updated.revision, 2);
+    assert.equal(updated.merchant, 'refreshed');
+    assert.equal((await request('calendarId=other', { expectedRevision: 0, merchant: 'wrong calendar' }, '/t000')).status, 404);
+    assert.equal((await request('calendarId=default', { expectedRevision: 0, merchant: 'missing' }, '/missing')).status, 404);
+  } finally { sqlite.close(); }
+});
+
+test('invalid revision and revision-only PATCH do not write', async () => {
+  const { sqlite, request } = fixture();
+  try {
+    for (const expectedRevision of [undefined, null, '0', true, -1, 0.5, Number.MAX_SAFE_INTEGER, {}, []]) {
+      assert.equal((await request('calendarId=default', { expectedRevision, status: 'confirmed' }, '/t000')).status, 400);
+    }
+    assert.equal((await request('calendarId=default', { expectedRevision: 0 }, '/t000')).status, 400);
+    assert.equal(sqlite.prepare("SELECT revision FROM card_transactions WHERE id = 't000'").get()?.revision, 0);
+  } finally { sqlite.close(); }
+});
+
+test('revision migration preserves existing records and defaults new inserts', () => {
+  const sqlite = new DatabaseSync(':memory:');
+  try {
+    sqlite.exec(readFileSync('migrations/0004_card_import.sql', 'utf8'));
+    sqlite.exec(`INSERT INTO card_import_sources (id, calendar_id, credit_card_id, provider, label)
+      VALUES ('s', 'default', 'card', 'jcb', 'synthetic');
+      INSERT INTO card_transactions (id, calendar_id, source_id, transaction_date, amount_yen)
+      VALUES ('old', 'default', 's', '2026-10-21', 500)`);
+    sqlite.exec(readFileSync('migrations/0006_card_transaction_revision.sql', 'utf8'));
+    assert.equal(sqlite.prepare("SELECT revision FROM card_transactions WHERE id = 'old'").get()?.revision, 0);
+    assert.equal(sqlite.prepare("SELECT amount_yen FROM card_transactions WHERE id = 'old'").get()?.amount_yen, 500);
+    assert.throws(() => sqlite.exec("UPDATE card_transactions SET revision = -1"));
   } finally { sqlite.close(); }
 });

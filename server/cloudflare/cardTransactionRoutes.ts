@@ -8,7 +8,7 @@ type CardTransactionRow = {
   category: string; status: string; confirmed_amount_yen: number | null;
   expected_payment_date: string | null; confirmed_payment_date: string | null;
   linked_money_record_id: string | null; needs_review: number;
-  created_at: string; updated_at: string;
+  created_at: string; updated_at: string; revision: number;
 };
 
 export async function handleCardTransactions(
@@ -38,7 +38,7 @@ export async function handleCardTransactions(
       SELECT id, calendar_id, source_id, transaction_date, used_at, amount_yen,
              merchant, category, status, confirmed_amount_yen,
              expected_payment_date, confirmed_payment_date, linked_money_record_id,
-             needs_review, created_at, updated_at
+             needs_review, created_at, updated_at, revision
       FROM card_transactions WHERE calendar_id = ?${after}
       ORDER BY transaction_date DESC, created_at DESC, id DESC LIMIT ?
     `).bind(...bindings).all<CardTransactionRow>();
@@ -61,15 +61,22 @@ export async function handleCardTransactions(
     const columns = Object.entries(parsed.value);
     const clause = columns.map(([key]) => cardTransactionPatchColumns[key] + ' = ?').join(', ');
     const values = columns.map(([key, value]) => key === 'needsReview' ? Number(value) : value);
-    const change = await db.prepare(`UPDATE card_transactions SET ${clause}, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND calendar_id = ?`).bind(...values, decodedId, calendarId).run();
-    if (!change.meta.changes) return jsonError('not_found', 'Transaction not found.', 404);
-    const row = await db.prepare(`SELECT id, calendar_id, source_id, transaction_date, used_at,
-      amount_yen, merchant, category, status, confirmed_amount_yen, expected_payment_date,
-      confirmed_payment_date, linked_money_record_id, needs_review, created_at, updated_at
-      FROM card_transactions WHERE id = ? AND calendar_id = ?`)
-      .bind(decodedId, calendarId).first<CardTransactionRow>();
-    return json({ transaction: toPublicTransaction(row!) });
+    // Compare-and-swap and return the exact row written by this statement.
+    const row = await db.prepare(`UPDATE card_transactions
+      SET ${clause}, updated_at = CURRENT_TIMESTAMP, revision = revision + 1
+      WHERE id = ? AND calendar_id = ? AND revision = ?
+      RETURNING id, calendar_id, source_id, transaction_date, used_at,
+        amount_yen, merchant, category, status, confirmed_amount_yen, expected_payment_date,
+        confirmed_payment_date, linked_money_record_id, needs_review, created_at, updated_at, revision`)
+      .bind(...values, decodedId, calendarId, parsed.expectedRevision).first<CardTransactionRow>();
+    if (!row) {
+      const exists = await db.prepare('SELECT id FROM card_transactions WHERE id = ? AND calendar_id = ?')
+        .bind(decodedId, calendarId).first<{ id: string }>();
+      return exists
+        ? jsonError('conflict', 'Transaction changed. Reload before editing again.', 409)
+        : jsonError('not_found', 'Transaction not found.', 404);
+    }
+    return json({ transaction: toPublicTransaction(row) });
   }
 
   return jsonError('method_not_allowed', 'Unsupported method.', 405);
@@ -77,7 +84,7 @@ export async function handleCardTransactions(
 
 function toPublicTransaction(row: CardTransactionRow) {
   return {
-    id: row.id, calendarId: row.calendar_id, sourceId: row.source_id,
+    id: row.id, revision: row.revision, calendarId: row.calendar_id, sourceId: row.source_id,
     transactionDate: row.transaction_date, usedAt: row.used_at, amountYen: row.amount_yen,
     merchant: row.merchant, category: row.category, status: row.status,
     confirmedAmountYen: row.confirmed_amount_yen, expectedPaymentDate: row.expected_payment_date,

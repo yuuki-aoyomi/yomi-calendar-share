@@ -18,6 +18,7 @@ export type CardTransaction = {
   needsReview: boolean;
   createdAt: string;
   updatedAt: string;
+  revision: number;
 };
 
 export const isDateKey = (value: unknown): value is string => {
@@ -28,13 +29,17 @@ export const isDateKey = (value: unknown): value is string => {
 };
 
 export function validateCardTransactionPatch(value: unknown):
-  | { ok: true; value: Record<string, string | number | boolean | null> }
+  | { ok: true; expectedRevision: number; value: Record<string, string | number | boolean | null> }
   | { ok: false; error: string } {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return { ok: false, error: 'Expected an object.' };
   const body = value as Record<string, unknown>;
+  if (!Number.isSafeInteger(body.expectedRevision) || (body.expectedRevision as number) < 0 ||
+      (body.expectedRevision as number) >= Number.MAX_SAFE_INTEGER)
+    return { ok: false, error: 'Valid expectedRevision is required.' };
   const allowed = new Set(['merchant', 'category', 'status', 'confirmedAmountYen', 'confirmedPaymentDate', 'needsReview']);
   const patch: Record<string, string | number | boolean | null> = {};
   for (const [key, item] of Object.entries(body)) {
+    if (key === 'expectedRevision') continue;
     if (!allowed.has(key)) return { ok: false, error: 'Unknown field: ' + key };
     if (key === 'status' && (typeof item !== 'string' || !['pending', 'confirmed', 'cancelled'].includes(item)))
       return { ok: false, error: 'Invalid status.' };
@@ -49,7 +54,7 @@ export function validateCardTransactionPatch(value: unknown):
     patch[key] = item as string | number | boolean | null;
   }
   if (Object.keys(patch).length === 0) return { ok: false, error: 'Empty patch.' };
-  return { ok: true, value: patch };
+  return { ok: true, expectedRevision: body.expectedRevision as number, value: patch };
 }
 
 export const cardTransactionPatchColumns: Record<string, string> = {
