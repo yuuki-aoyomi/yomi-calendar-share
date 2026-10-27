@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { EventForm } from './EventForm';
 import { EventList } from './EventList';
+import { PendingTodoPanel } from './PendingTodoPanel';
 import { DailyPhotoPanel } from './DailyPhotoPanel';
 import type { CalendarEvent, CalendarTag, CreditCardSetting, DailyPhoto, MoneyRecord, PartTimeJob } from '../types/calendar';
 import { buildCreditCardPaymentSchedules } from '../utils/creditCard';
@@ -186,6 +187,20 @@ export function ScheduleMode({
         }}
       />
 
+      <PendingTodoPanel
+        events={events}
+        tags={tags}
+        onComplete={(id) => {
+          onEventsChange((current) => current.map((event) =>
+            event.id === id ? { ...event, done: true, updatedAt: new Date().toISOString() } : event,
+          ));
+        }}
+        onEdit={(event) => {
+          setEditingEventId(event.id);
+          setIsEditorOpen(true);
+        }}
+      />
+
       <DailyPhotoPanel
         calendarId={calendarId}
         writeToken={writeToken}
@@ -258,3 +273,4 @@ export function ScheduleMode({
     </div>
   );
 }
+
