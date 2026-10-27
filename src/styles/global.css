@@ -3212,3 +3212,26 @@ input, select, textarea { max-width: 100%; min-width: 0; }
   .history-access-button { width: 100%; }
   .history-open-button { min-width: max-content; }
 }
+
+
+/* All pending tasks remain reachable without changing the selected date. */
+.pending-todos { padding: 16px; border: 1px solid var(--border); border-radius: 18px; background: var(--panel-bg); color: var(--text); }
+.pending-todos-heading h3 { margin: 0; font-size: 1rem; color: var(--heading); }
+.pending-todos-heading h3 span, .pending-todos-group h4 span { color: var(--muted-text); font-weight: 400; font-size: .85rem; }
+.pending-todos-heading p { margin: 6px 0 12px; color: var(--muted-text); font-size: .8rem; }
+.pending-todos-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.pending-todos-filters button { min-height: 36px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--soft-bg); color: var(--text); font-size: .8rem; }
+.pending-todos-filters button[aria-pressed="true"] { background: var(--text); color: var(--page-bg); }
+.pending-todos-list { max-height: 340px; overflow-y: auto; }
+.pending-todos-group h4 { margin: 12px 0 6px; font-size: .85rem; }
+.pending-todos-group:first-child h4 { margin-top: 0; }
+.pending-todos-group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.pending-todos-group li { display: flex; align-items: flex-start; gap: 4px; padding: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--card-bg); }
+.pending-todos-group li.pending-todo-overdue { border-left: 4px solid #dc5365; }
+.pending-todos-group li.pending-todo-today { border-left: 4px solid #c88a28; }
+.pending-todos-group input { flex: 0 0 auto; width: 20px; height: 20px; margin: 10px; cursor: pointer; }
+.pending-todo-detail { display: grid; gap: 4px; min-width: 0; flex: 1; min-height: 44px; border: 0; padding: 6px; background: transparent; text-align: left; color: var(--text); overflow-wrap: anywhere; }
+.pending-todo-detail strong { font-size: .9rem; }
+.pending-todo-deadline, .pending-todo-tags { font-size: .78rem; color: var(--muted-text); }
+.pending-todos-empty { margin: 8px 0; font-size: .85rem; color: var(--muted-text); }
+.pending-todos :focus-visible { outline: 2px solid #818cf8; outline-offset: 2px; }
