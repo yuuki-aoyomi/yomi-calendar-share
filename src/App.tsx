@@ -19,6 +19,7 @@ import { SettingsMode } from './components/SettingsMode';
 import { CalendarHistoryModal } from './components/CalendarHistoryModal';
 import { HelpModal } from './components/HelpModal';
 import { CalendarInsights } from './components/CalendarInsights';
+import { PendingTodoPanel } from './components/PendingTodoPanel';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
 import type {
   CalendarEvent,
@@ -34,7 +35,6 @@ import type {
 import { getMonthKey, toDateKey } from './utils/date';
 import { persistRemoteSnapshot } from './utils/remoteSave';
 import { getDisplayedSyncStatus } from './utils/syncDisplay';
-import { getHighlightedPendingTodos } from './utils/todo';
 
 const todayKey = toDateKey(new Date());
 const calendarId = appConfig.calendarId;
@@ -150,10 +150,6 @@ function App() {
   const latestRemoteSnapshot = useRef(currentRemoteSnapshot);
   const hasPendingLocalChanges = isRemoteLoaded && JSON.stringify(currentRemoteSnapshot) !== lastSavedRemoteSnapshot.current;
   const displayedSyncStatus = getDisplayedSyncStatus(syncStatus, hasPendingLocalChanges);
-  const pendingHighlightedTodos = useMemo(
-    () => getHighlightedPendingTodos(events, toDateKey(new Date())),
-    [events, timePeriod],
-  );
 
   useEffect(() => {
     latestRemoteSnapshot.current = currentRemoteSnapshot;
@@ -527,23 +523,14 @@ function App() {
               <span>過去のVersionを確認し、カレンダーを復元できます</span>
             </div>
           )}
-          {pendingHighlightedTodos.length > 0 && (
-            <section className="todo-alert-panel" role="status">
-              <strong>未完了のToDoがあります</strong>
-              <span>今日までの未完了: {pendingHighlightedTodos.length}件</span>
-              <button
-                type="button"
-                onClick={() => {
-                  const oldest = pendingHighlightedTodos[0];
-                  setSelectedDate(oldest.date);
-                  setCurrentMonth(new Date(`${oldest.date}T12:00:00`));
-                  setActiveMode('schedule');
-                }}
-              >
-                最も古い未完了日を表示
-              </button>
-            </section>
-          )}
+          <PendingTodoPanel events={events} tags={tags}
+            onComplete={(id) => setEvents((current) => current.map((event) =>
+              event.id === id ? { ...event, done: true, updatedAt: new Date().toISOString() } : event))}
+            onEdit={(event) => {
+              handleSelectDate(event.date);
+              setActiveMode('schedule');
+              setCalendarEditRequest({ eventId: event.id, requestedAt: Date.now() });
+            }} />
           <Calendar
             currentMonth={currentMonth}
             activeMode={activeMode}
