@@ -190,9 +190,14 @@ export function ScheduleMode({
       <PendingTodoPanel
         events={events}
         tags={tags}
-        onComplete={(id) => {
+        onToggleTodo={(id, done) => {
           onEventsChange((current) => current.map((event) =>
-            event.id === id ? { ...event, done: true, updatedAt: new Date().toISOString() } : event,
+            event.id === id ? { ...event, done, updatedAt: new Date().toISOString() } : event,
+          ));
+        }}
+        onHighlightChange={(id, highlightTodo) => {
+          onEventsChange((current) => current.map((event) =>
+            event.id === id ? { ...event, highlightTodo, updatedAt: new Date().toISOString() } : event,
           ));
         }}
         onEdit={(event) => {
