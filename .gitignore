@@ -16,3 +16,4 @@ dist
 *.log
 *.tsbuildinfo
 coverage
+.tmp-tests/
