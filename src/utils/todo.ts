@@ -1,14 +1,22 @@
 import type { CalendarEvent } from '../types/calendar';
 
 export type TodoPeriod = 'overdue' | 'today' | 'upcoming';
+export type TodoView = 'highlighted' | 'pending' | 'completed' | 'all';
+
+export const getTodosForView = (events: CalendarEvent[], view: TodoView = 'highlighted'): CalendarEvent[] =>
+  events.filter((event) => {
+    if (event.category !== 'todo') return false;
+    if (view === 'all') return true;
+    if (view === 'completed') return Boolean(event.done);
+    return !event.done && (view === 'pending' || event.highlightTodo !== false);
+  }).sort((a, b) => a.date.localeCompare(b.date)
+    || (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER)
+    || a.createdAt.localeCompare(b.createdAt)
+    || a.id.localeCompare(b.id));
 
 // Every stored task appears once, including tasks with highlighting disabled.
 export const getPendingTodos = (events: CalendarEvent[]): CalendarEvent[] =>
-  events.filter((event) => event.category === 'todo' && !event.done)
-    .sort((a, b) => a.date.localeCompare(b.date)
-      || (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER)
-      || a.createdAt.localeCompare(b.createdAt)
-      || a.id.localeCompare(b.id));
+  getTodosForView(events, 'pending');
 
 export const getTodoPeriod = (date: string, today: string): TodoPeriod =>
   date < today ? 'overdue' : date === today ? 'today' : 'upcoming';
