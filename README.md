@@ -9,12 +9,12 @@ React + TypeScript + Vite で作る、予定・ToDo・お金・日別写真・�
 現在は実運用しながら改善中です。
 
 - フロントエンドは React の通常SPA
-- ローカル開発では `localStorage` 保存
+- 通常のViteローカル開発では `localStorage` 保存。Worker APIのローカル検証は別途設定が必要
 - 本番HTTPSでは同一originのHTTP APIを利用
 - Cloudflare版では D1 にカレンダー全体のJSON snapshotを保存
-- 画像は R2 に保存し、DBには固定URLではなく `imageKey` とメタデータを保存
+- APIモードの写真は R2 に保存し、snapshotには `imageKey`・API表示用URL・メタデータを保存（R2公開URLへの固定はしない）
 - 日別写真は毎日 `BACKUPS` R2 bucket へ世代バックアップし、同一ETagは重複保存しない
-- 共有トークン `WRITE_TOKEN` で読み書きAPIと画像APIを保護
+- 共有トークン `WRITE_TOKEN` でデータ読み書き・管理APIを保護。画像表示はトークンで発行した読み取り専用Cookieを使用
 - AI連携は未実装
 
 ## Main Features
@@ -23,6 +23,7 @@ React + TypeScript + Vite で作る、予定・ToDo・お金・日別写真・�
 - 予定、詳細予定、日記、写真メモ
 - ToDo
   - カレンダー上は未完了ドットで通知
+  - 全期間の未完了ToDoを期限順に一覧表示。「期限切れ / 今日 / 今後」の絞り込み、残り日数、一覧からの編集・完了
   - 選択日の一覧ではタグごとに折りたたみ表示
   - タググループごとの `+` 追加
   - 複数タグ付きToDoは、付いている全タググループに表示
@@ -32,7 +33,7 @@ React + TypeScript + Vite で作る、予定・ToDo・お金・日別写真・�
 - 予定 / ToDo のドラッグ並び替え
 - 日別写真
   - フロント側で圧縮
-  - original / optimized を分ける設計方針
+  - 現在は最適化後の画像のみ保存。原本を別途保管する機能は未実装
 - お金モード
   - 収入 / 支出記録
   - クレカ利用記録
@@ -55,7 +56,18 @@ React + TypeScript + Vite で作る、予定・ToDo・お金・日別写真・�
   - 時間帯背景: 朝、昼、夕方、夜
   - 手動天気背景: 晴れ、雨、雷、曇り、雪、霰・雹
   - 設定でON/OFF
-- JSONバックアップの書き出し / 読み込み
+- JSONバックアップの全体 / 部分書き出し・読み込み、重複確認
+- タイトル・メモ・タグ等の横断検索
+- カレンダーの変更履歴・プレビュー・復元（直近50世代）
+
+## 運用ドキュメント
+
+- [通常更新・本番デプロイ](#通常更新と本番デプロイ)
+- [Cloudflare初回セットアップ](#cloudflare初回セットアップ)
+- [バックアップと復元](docs/backup-restore.md)
+- [無料枠と使用量の確認](docs/free-tier-operations.md)
+- [デプロイ・移行チェックリスト](docs/cloudflare-migration-checklist.md)
+- [将来のホスティング移行方針](docs/portable-hosting-plan.md)
 
 ## Calendar version history
 
@@ -89,7 +101,7 @@ docs/           operation and portability notes
 - Cloudflare binding型は `server/cloudflare/` の外へ広げない
 - フロントは通常のHTTP APIへアクセスする
 - 環境値は `src/config/appConfig.ts` から読む
-- 画像URLは永続保存せず、画像キーを保存する
+- 写真の参照は画像キーを軸にし、R2の固定公開URLへ依存しない（現在はAPI表示用URLもsnapshotに含む）
 - サブスク、給料、クレカなどの計算はフロント側の純粋ロジックに寄せる
 - 移行時は API contract と snapshot 形式を保ち、entrypoint / DB / storage を差し替える
 
@@ -141,42 +153,39 @@ DB読み出し・409競合応答・履歴プレビューでも項目を検証し
 
 ## Quick Start
 
+前提は Git、Node.js 24系、npm、Cloudflareを利用する場合はそのアカウントです。CIもNode.js 24を使用します。コマンド例はmacOS / Linux / Windows Git Bash向けです。PowerShellでは `cp` 等を対応する操作に読み替えてください。
+
 ```bash
-npm install
+git clone https://github.com/yuuki-aoyomi/yomi-calendar-share.git
+cd yomi-calendar-share
+node --version
+npm --version
+npm ci
 npm run dev
 ```
 
-Local URL:
-
-```text
-http://localhost:5173/
-```
-
-ローカル開発では、通常 `localStorage` に保存されます。
+`http://localhost:5173/` を開きます。通常は `localStorage` 保存で、Cloudflareアカウント・トークンは不要です。このデータは本番へ自動転送されません。`npm ci` はlockfile通りに依存を導入するコマンドで、依存更新が目的の場合を除き `npm install` より優先します。
 
 ## Scripts
 
-```bash
-npm run dev
-npm run build
-npm run preview
-npm run worker:check
-npm run cf:dev
-npm run cf:deploy
-npm run db:migrate:local
-npm run db:migrate:remote
-```
+| コマンド | 用途・書き込み先 |
+| --- | --- |
+| `npm run dev` | Vite開発サーバー。通常はブラウザのlocalStorage |
+| `npm test` | `tests/*.test.ts` をビルドし、Node test runnerで実行 |
+| `npm run build` | フロントエンド型チェックと `dist/` 生成。デプロイはしない |
+| `npm run preview` | ビルド済みフロントの確認。Worker APIは起動しない |
+| `npm run worker:check` | Workerの型チェック。デプロイはしない |
+| `npm run cf:dev` | フロントをビルド後、WranglerでローカルWorker / D1 / R2を起動 |
+| `npm run cf:deploy` | フロントをビルド後、設定先の本番Workerへデプロイ |
+| `npm run db:migrate:local` | ローカルD1へ未適用migrationを適用 |
+| `npm run db:migrate:remote` | **本番D1**へ未適用migrationを適用 |
+| `node scripts/smoke-image-session.mjs` | CIと同じローカルHTTP画像認証スモークテスト |
 
-よく使う確認:
-
-```bash
-npm run build
-npm run worker:check
-```
+`cf:deploy` はテスト・Worker型チェック・DB migrationを自動実行しません。GitHub Actionsは検証のみで、リポジトリのworkflowから本番デプロイは行いません。Cloudflare側で別途Workers Buildsを設定している場合は、その自動デプロイ設定を別に確認してください。
 
 ## Environment Variables
 
-Frontend config:
+フロントエンド設定は `.env.example` を参考に `.env.local` などの非公開ファイルへ記述します。
 
 ```env
 VITE_RUNTIME_TARGET=auto
@@ -184,86 +193,167 @@ VITE_API_BASE_URL=
 VITE_CALENDAR_ID=default
 ```
 
-`VITE_RUNTIME_TARGET=auto` の挙動:
+| 設定 | 動作 |
+| --- | --- |
+| `auto`、API URL空欄 | localhost / 127.0.0.1 / ::1および通常HTTPはlocalStorage、その他のHTTPSは同一origin API |
+| `cloudflare` | localhostでもHTTP APIを使う |
+| `local`、API URL空欄 | HTTPSでもlocalStorageを使う |
+| `VITE_API_BASE_URL` 非空欄 | runtime指定にかかわらずHTTP APIを使う |
 
-- localhost: `localStorage`
-- 本番HTTPS: 同一originのAPI
+本番は `auto` または `cloudflare`、`VITE_API_BASE_URL` は空欄とし、画面・APIを同一originで配信してください。現在のWorkerはCORSを実装しておらず、画像セッションも `credentials: 'same-origin'` なので、**別origin APIへの切り替えは設定だけでは動作しません**。
 
-別origin API を使う場合:
+- `VITE_*` はビルド時に埋め込まれます。変更後は再ビルド・再デプロイ（Vite開発時は再起動）が必要です。
+- `VITE_CALENDAR_ID` は共有者間で合わせます。別の値にすると別カレンダーになり、元データが消えたように見えます。
+- `WRITE_TOKEN` を `VITE_*` に入れないでください。ブラウザ配信物に含まれます。
+- WorkerのローカルSecretは `.dev.vars`、本番はCloudflare Secretです。`.dev.vars` を作るだけでは本番Secretは登録されません。
 
-```env
-VITE_RUNTIME_TARGET=cloudflare
-VITE_API_BASE_URL=https://example.your-worker.workers.dev
-VITE_CALENDAR_ID=default
-```
+## ローカルWorkerの確認
 
-重要:
+Vite単体の `npm run dev` / `preview` ではD1・R2・Worker APIを検証できません。
 
-- `WRITE_TOKEN` を `VITE_*` に入れないでください。
-- `VITE_*` はブラウザ配信物に含まれます。
-- 本番の `WRITE_TOKEN` は Cloudflare Secret に保存します。
+1. `.dev.vars.example` を `.dev.vars` へコピーし、開発用 `WRITE_TOKEN` を設定します。本番とは別の値を使います。
+2. `.env.local` を以下にします（通常のlocalStorage開発へ戻す場合は `auto` に戻してください）。
 
-## Cloudflare Setup
+   ```env
+   VITE_RUNTIME_TARGET=cloudflare
+   VITE_API_BASE_URL=
+   VITE_CALENDAR_ID=default
+   ```
 
-想定リソース名:
+3. ローカルDBを準備して起動します。
 
-```text
-D1 database: yomi-calendar-share-db
-R2 images:   yomi-calendar-share-images
-R2 backups:  yomi-calendar-share-backups
-```
+   ```bash
+   npm run db:migrate:local
+   npm run cf:dev
+   ```
 
-`wrangler.toml`:
+4. Wranglerが表示するURL（通常 `http://localhost:8787/`）を開き、初回の「カレンダーを開く」画面の「書き込みトークン」に `.dev.vars` の値を入力します。予定の保存・再読み込みと写真の追加・表示を確認します。
 
-```toml
-[[d1_databases]]
-binding = "DB"
-database_name = "yomi-calendar-share-db"
-database_id = "your-d1-database-id"
+`--remote` を付けないローカル実行のDB・R2は本番とは別です。`.wrangler/` 内のローカル状態を削除すると検証データも失われます。画像CookieはSecure属性付きなので、ブラウザ確認にはlocalhostを使い、LAN内IPの平文HTTPでは画像表示を前提にしないでください。
 
-[[r2_buckets]]
-binding = "IMAGES"
-bucket_name = "yomi-calendar-share-images"
+## Cloudflare初回セットアップ
 
-[[r2_buckets]]
-binding = "BACKUPS"
-bucket_name = "yomi-calendar-share-backups"
-```
+既存環境の更新は次の「通常更新と本番デプロイ」を使います。リソースの再作成やSecretの再登録は毎回必要ありません。
 
-作成例:
+### 1. アカウントとリソース
 
 ```bash
 npx wrangler login
+npx wrangler whoami
 npx wrangler d1 create yomi-calendar-share-db
 npx wrangler r2 bucket create yomi-calendar-share-images
 npx wrangler r2 bucket create yomi-calendar-share-backups
 ```
 
-Secret:
+`wrangler.toml` の `database_id` を作成結果へ置き換え、Worker名・リソース名も自分の環境に合わせます。既存のIDを別アカウントでそのまま使用しないでください。DB名を変更した場合、`package.json` のmigrationスクリプト内のDB名も合わせます。
+
+必須bindingは `DB`、`IMAGES`、`BACKUPS`、`ASSETS` です。静的画面は `[assets]` の `./dist` から配信し、entrypointは `server/cloudflare/worker.ts` です。Workers Static Assets構成なので、Pages用のデプロイコマンドは使いません。R2バケットは公開不要です。
+
+### 2. 本番DBと初回Secret
+
+本番向け `.env.local` / `.env.production.local` とシェル環境を確認します。`VITE_RUNTIME_TARGET=local` や検証用 `VITE_API_BASE_URL` が残ったままビルドしないでください。
 
 ```bash
-npx wrangler secret put WRITE_TOKEN
+npm test
+npm run worker:check
+npm run db:migrate:remote
 ```
 
-ローカルCloudflare確認:
+現在のmainはmigration `0001`〜`0003` を使用します。migrationはWorkerのデプロイより先に適用します。
+
+32バイト以上の乱数を16進表記にした共有トークン（64文字以上）を用意し、非公開ファイル `.dev.vars.production` に以下の形式で保存します。例の値は置き換え、Gitへコミットしないでください（このファイルは `.gitignore` 対象です）。
+
+```env
+WRITE_TOKEN=replace-with-a-long-random-production-token
+```
+
+コードとSecretを一度に初回デプロイします。
 
 ```bash
-cp .dev.vars.example .dev.vars
-npm run db:migrate:local
-npm run cf:dev
+npm run cf:deploy -- --secrets-file .dev.vars.production
 ```
 
-本番migration:
+`--secrets-file` はファイル内のSecretをCloudflareへ登録します。通常のコード更新では省略でき、登録済みSecretは保持されます。トークンは安全に保管し、端末内のファイルが不要になったら削除してください。
+
+既存Workerのトークンを変更する場合は `npx wrangler secret put WRITE_TOKEN` も使えます。このコマンドはSecret保存だけでなく新しいWorker versionを即時デプロイするため、変更するタイミングを確認してください。変更後は全共有端末の設定も更新します。
+
+### 3. 初回確認
+
+デプロイ出力のHTTPS URLを開き、初回の「カレンダーを開く」画面に本番Secretと同じトークンを入力します（接続後は設定画面から変更可能です）。予定の保存・再読み込み、写真、履歴を確認します。Cronは `0 18 * * *`（UTC 18:00 = 毎日03:00 日本時間）です。翌実行後にバックアップログとR2オブジェクトも確認してください。
+
+## 通常更新と本番デプロイ
+
+PRはユーザーがレビューしてマージし、本番デプロイもユーザーが実行します。**マージしただけではローカルのコードや本番は更新されません。**
+
+### 1. mainを最新にする
+
+リポジトリのディレクトリで実行します。最初の `git status --short` に変更が出た場合は、その内容を保全・整理してから続行してください。未コミット変更を消すコマンドは実行しません。
+
+```bash
+git status --short
+git switch main
+git pull --ff-only origin main
+git branch --show-current
+git log -1 --oneline
+git status --short --branch
+```
+
+ブランチ名が `main` で、目的のPRを含むコミットになっていることをGitHubのmainと照合します。ローカルだけのコミットがある場合もそのままデプロイせず確認してください。`git pull` は現在のブランチをmainへ切り替える操作ではありません。`--ff-only` が失敗したら停止し、分岐を確認します。
+
+`origin` が未設定なら `git remote -v` で確認し、存在しない場合に限り次を実行します。
+
+```bash
+git remote add origin https://github.com/yuuki-aoyomi/yomi-calendar-share.git
+git fetch origin
+```
+
+### 2. 検証とmigrationの確認
+
+```bash
+npm ci
+npm test
+npm run worker:check
+npx wrangler d1 migrations list yomi-calendar-share-db --remote
+```
+
+未適用migrationがある場合は内容と対象DBを確認し、既存データをバックアップしてから適用します。JSONバックアップは画像バイナリやD1の履歴テーブル全体を含まないため、用途に応じて [バックアップ手順](docs/backup-restore.md) も確認してください。
 
 ```bash
 npm run db:migrate:remote
 ```
 
-Deploy:
+UIやドキュメントのみの変更で未適用migrationがなければ、DB操作は不要です。
+
+### 3. 本番へ反映
+
+本番ビルド用の環境値・Cloudflareアカウント・`wrangler.toml` の対象を確認して実行します。
 
 ```bash
+npx wrangler whoami
 npm run cf:deploy
 ```
+
+フロントのビルドが成功した後、Workerと静的画面が反映されます。`npm run build` だけでは本番は変わりません。デプロイしたコミットSHA、出力されたWorker versionとURLを控えます。
+
+アップロードせずビルド・bundleだけ確認する場合:
+
+```bash
+npm run build
+npx wrangler deploy --dry-run
+```
+
+dry-runでは本番のbinding・Secret・権限・実接続の成功までは保証できません。
+
+### 4. 反映確認と切り戻し
+
+- ページを再読み込みし、変更したUIを確認する
+- 同期が「保存済み」になること、再読み込みしてもデータが残ることを確認する
+- 写真の追加・表示、変更履歴・プレビューを確認する
+- 共有相手も同じURL・カレンダーID・有効なトークンを使っていることを確認する
+
+変更が見えない場合は、最初にデプロイしたブランチ・コミット・URLを確認してください。認証エラーはWorker Secretと端末のトークン、画像だけのエラーは画像セッション・同一origin・Cookieを確認します。`no such table` / `no such column` は対象DBと未適用migrationを確認します。
+
+問題がある場合はCloudflareのデプロイ履歴から既知の正常なWorker versionへ戻すことを検討します。ただし、**WorkerのロールバックはD1のスキーマ・データやR2を巻き戻しません**。DB・画像の復旧は別途 [バックアップと復元](docs/backup-restore.md) に従います。
 
 ## Access Control
 
@@ -271,13 +361,11 @@ npm run cf:deploy
 
 `WRITE_TOKEN` が必要な操作:
 
-- カレンダーデータ読み込み
-- カレンダーデータ保存
-- 画像アップロード
-- 画像表示
-- 画像バックアップ世代一覧 / 復元API
-- 画像ストレージ統計 / 孤児画像GC API
+- カレンダーデータ読み込み・保存、変更履歴一覧・プレビュー・復元
+- 画像アップロードと画像閲覧セッションの発行
+- 画像バックアップ世代一覧・復元、画像ストレージ統計・孤児画像GC
 
+画像GETはトークンそのものをURLに付けず、`POST /api/image-session` で発行する1時間有効の読み取り専用Cookie（HttpOnly / Secure / SameSite=Strict）で認可します。
 注意:
 
 - トークンを知っている人は全データを読めて編集できます。
@@ -313,11 +401,14 @@ settings
 
 画像方針:
 
-- フロントで圧縮してからアップロード
+- フロントで1,000,000 bytes・長辺1600pxを目安に縮小・圧縮。元ファイルが条件内なら再圧縮を省略する場合がある
+- フロント・Workerの受け入れ上限は2 MiB（2,097,152 bytes）。目標サイズ以内への圧縮を常に保証するものではない
+- 現在の保存先は `daily-images/optimized/`。原本の別保存は未実装
 - DBには `imageKey` とmetadataを保存
 - R2の固定公開URLは保存しない
-- 表示URLはAPI経由で生成
+- 表示URLはAPI経由で生成。画像GETは `private, no-store` とし、Worker Cache APIは使用しない
 - 毎日のCronで `IMAGES` から `BACKUPS` へETag単位の世代バックアップを作成
+- 保持期間・削除条件は [バックアップと復元](docs/backup-restore.md) を参照
 - `GET /api/admin/image-backups?imageKey=...` でバックアップ世代一覧を取得
 - `POST /api/admin/image-restore` で指定世代または最新世代を復元
 - `GET /api/admin/image-storage` でR2使用量・孤児画像候補・参照切れを確認。現在のsnapshotと保持中の全履歴の画像（旧画像URLを含む）を参照対象とし、`gcEligibleKeys` にアップロード後24時間以上経過した削除可能候補を返す
@@ -353,9 +444,9 @@ local filesystem or MinIO
 
 詳しくは以下を参照してください。
 
-- `docs/portable-hosting-plan.md`
-- `docs/free-tier-operations.md`
-- `docs/cloudflare-migration-checklist.md`
+- [ホスティング移行方針](docs/portable-hosting-plan.md)
+- [無料枠の運用](docs/free-tier-operations.md)
+- [デプロイ・移行チェックリスト](docs/cloudflare-migration-checklist.md)
 
 ## Public Repository Safety
 
@@ -370,8 +461,8 @@ local filesystem or MinIO
 コミットしてはいけないもの:
 
 - `.env`
-- `.env.local`
-- `.dev.vars`
+- `.env.local` / `.env.production.local`
+- `.dev.vars` / `.dev.vars.production`
 - Cloudflare API token
 - `WRITE_TOKEN`
 - R2 access key / secret key
@@ -382,4 +473,17 @@ local filesystem or MinIO
 - ログイン / ユーザー別権限は未実装
 - 天気背景は手動選択で、外部天気API連携は未実装
 - `SettingsMode`, `MoneyMode`, `EventList` は今後分割したい
-- 現在のDB保存はsnapshot方式で、正規化テーブルではない
+- 現在のDB保存はsnapshot方式で、正規化テーブルではない（保存上限1,000,000 bytes）
+- APIモードの未保存変更は画面のメモリーに保持される。同期失敗・オフライン中に閉じると失われる可能性がある
+- カード通知の自動受信・取込、Push通知、PWAは現在のmainでは未実装
+- 原本の別保存、別origin APIへのCORS対応、無料枠を超えない自動制御は未実装
+
+
+## 参照したCloudflare公式資料
+
+運用手順はリポジトリの実装と、以下の公式資料を照合しています。CLIオプションはインストール済みWranglerの `--help` でも確認してください。
+
+- [Secretsと初回デプロイ](https://developers.cloudflare.com/workers/configuration/secrets/)
+- [Workerデプロイ・SecretのCLI](https://developers.cloudflare.com/workers/wrangler/commands/workers/)
+- [D1 migration・exportのCLI](https://developers.cloudflare.com/workers/wrangler/commands/d1/)
+- [Worker versionとストレージの関係](https://developers.cloudflare.com/workers/versions-and-deployments/)
